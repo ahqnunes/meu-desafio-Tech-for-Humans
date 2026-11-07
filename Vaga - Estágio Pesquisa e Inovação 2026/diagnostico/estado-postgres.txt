@@ -1,0 +1,72 @@
+Diagnostico PostgreSQL - leitura, sem alterar configuracao
+
+===== Versao e tamanho do banco =====
+                                                       version                                                       
+---------------------------------------------------------------------------------------------------------------------
+ PostgreSQL 16.4 (Debian 16.4-1.pgdg120+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+(1 row)
+
+ tamanho_banco 
+---------------
+ 301 MB
+(1 row)
+
+
+===== Indices existentes =====
+  tablename   |     indexname     |                                   indexdef                                    
+--------------+-------------------+-------------------------------------------------------------------------------
+ clientes     | clientes_pkey     | CREATE UNIQUE INDEX clientes_pkey ON public.clientes USING btree (id)
+ itens_pedido | itens_pedido_pkey | CREATE UNIQUE INDEX itens_pedido_pkey ON public.itens_pedido USING btree (id)
+ pedidos      | pedidos_pkey      | CREATE UNIQUE INDEX pedidos_pkey ON public.pedidos USING btree (id)
+ produtos     | produtos_pkey     | CREATE UNIQUE INDEX produtos_pkey ON public.produtos USING btree (id)
+(4 rows)
+
+
+===== Estatisticas das tabelas =====
+    tabela    | seq_scan | seq_tup_read | idx_scan | idx_tup_fetch | n_live_tup | n_dead_tup |         last_analyze          | last_autoanalyze 
+--------------+----------+--------------+----------+---------------+------------+------------+-------------------------------+------------------
+ clientes     |      125 |     12400000 |   500335 |        500327 |     100000 |          0 | 2026-11-07 20:26:09.635466+00 | 
+ itens_pedido |     1655 |   1245000000 |        0 |             0 |    1500000 |          0 | 2026-11-07 20:26:11.454014+00 | 
+ pedidos      |      933 |    216500000 |  1500170 |       1500000 |     500000 |          0 | 2026-11-07 20:26:10.705963+00 | 
+ produtos     |      207 |      4120000 |  1502165 |       1502107 |      20000 |          0 | 2026-11-07 20:26:12.285383+00 | 
+(4 rows)
+
+
+===== Configuracoes relevantes =====
+           name           | setting | unit |       source       
+--------------------------+---------+------+--------------------
+ effective_cache_size     | 524288  | 8kB  | default
+ effective_io_concurrency | 1       |      | default
+ jit                      | on      |      | default
+ maintenance_work_mem     | 65536   | kB   | default
+ max_connections          | 100     |      | configuration file
+ random_page_cost         | 4       |      | default
+ shared_buffers           | 16384   | 8kB  | configuration file
+ work_mem                 | 4096    | kB   | default
+(8 rows)
+
+
+===== Conexoes atuais =====
+ state  | conexoes 
+--------+----------
+ active |        1
+(1 row)
+
+
+===== Extensoes e pg_stat_statements =====
+        name        | default_version | installed_version 
+--------------------+-----------------+-------------------
+ pg_stat_statements | 1.10            | 
+(1 row)
+
+ extname | extversion 
+---------+------------
+(0 rows)
+
+
+===== Contadores cumulativos do banco (interpretar como contexto) =====
+ datname | stats_reset | blks_read | blks_hit | tup_returned | tup_fetched | temp_files | temp_bytes 
+---------+-------------+-----------+----------+--------------+-------------+------------+------------
+ loja    |             |   7693216 | 34517529 |   1493919289 |     5665332 |        105 | 1940 MB
+(1 row)
+
