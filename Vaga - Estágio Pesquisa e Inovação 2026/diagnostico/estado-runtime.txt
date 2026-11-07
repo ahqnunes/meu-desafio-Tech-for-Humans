@@ -1,0 +1,21 @@
+Runtime evidence - challenge baseline diagnostic
+Collected: 2026-11-07 (diagnostic session)
+
+--- Compose services (temporary local port override) ---
+NAME                          IMAGE                     SERVICE   STATUS                       PORTS
+desafio-performance-api-1     desafio-performance-api   api       Up                           127.0.0.1:3001->3000/tcp
+desafio-performance-banco-1   postgres:16.4             banco     Up (healthy)                127.0.0.1:5434->5432/tcp
+
+--- API health endpoint ---
+GET http://127.0.0.1:3001/saude
+{"status":"ok"}
+
+--- Effective container resource limits (docker inspect) ---
+/desafio-performance-api-1 cpus=500000000 memory_bytes=268435456 status=running
+/desafio-performance-banco-1 cpus=1000000000 memory_bytes=536870912 status=running health=healthy
+
+Converted limits:
+- API: 0.5 CPU, 256 MiB
+- PostgreSQL: 1 CPU, 512 MiB
+
+The host ports 3000 and 5432 were already occupied by unrelated containers. The temporary override that mapped the challenge to ports 3001 and 5434 was kept outside the challenge repository.

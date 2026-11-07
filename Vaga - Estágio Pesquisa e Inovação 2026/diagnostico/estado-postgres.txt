@@ -70,3 +70,35 @@ Diagnostico PostgreSQL - leitura, sem alterar configuracao
  loja    |             |   7693216 | 34517529 |   1493919289 |     5665332 |        105 | 1940 MB
 (1 row)
 
+
+===== Parallelism, JIT, vacuum, and foreign keys =====
+ jit_above_cost
+----------------
+ 100000
+(1 row)
+
+ max_parallel_workers_per_gather
+---------------------------------
+ 2
+(1 row)
+
+ max_parallel_workers
+----------------------
+ 8
+(1 row)
+
+   relname    | last_vacuum |        last_autovacuum        |         last_analyze          | last_autoanalyze | n_live_tup
+--------------+-------------+-------------------------------+-------------------------------+------------------+------------
+ clientes     |             | 2026-11-07 20:27:01.493765+00 | 2026-11-07 20:26:09.635466+00 |                  |     100000
+ itens_pedido |             | 2026-11-07 20:27:17.161956+00 | 2026-11-07 20:26:11.454014+00 |                  |    1500000
+ pedidos      |             | 2026-11-07 20:27:10.525167+00 | 2026-11-07 20:26:10.705963+00 |                  |     500000
+ produtos     |             | 2026-11-07 20:27:17.237824+00 | 2026-11-07 20:26:12.285383+00 |                  |      20000
+(4 rows)
+
+  table_name  |           conname            |                    definition
+--------------+------------------------------+--------------------------------------------------
+ itens_pedido | itens_pedido_pedido_id_fkey  | FOREIGN KEY (pedido_id) REFERENCES pedidos(id)
+ itens_pedido | itens_pedido_produto_id_fkey | FOREIGN KEY (produto_id) REFERENCES produtos(id)
+ pedidos      | pedidos_cliente_id_fkey      | FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+(3 rows)
+
