@@ -146,13 +146,30 @@ Os p95 de 15–30s, 20 VUs e CPU média do banco de 90,4% na baseline e 78,8% na
 
 **Conclusão provisória:** o índice é usado no plano e é plausível mantê-lo para o próximo teste, mas a aparente melhora nas métricas de carga não é causalmente atribuível a ele com esta comparação. As janelas não foram equivalentes; o resultado de vendas é inconclusivo; e falta testar a sensibilidade a VUs. Os dados brutos não foram alterados.
 
+## Diagnóstico de concorrência — 2 versus 20 VUs
+
+Em 12/11, rodei três medições com 2 VUs e, em seguida, três com 20 VUs, mantendo a versão com o índice (commit `7412e60`), duração nominal de 60s, aquecimento de 15s e seed 42. Os seis `contexto.txt` registram zero arquivos alterados; todas as execuções mantiveram as 42 respostas do contrato e tiveram 0% de erros. As pastas têm os dados completos: [2 VUs, rodada 1](../resultados/20261112-171024-diag-vus-02/), [rodada 2](../resultados/20261112-171229-diag-vus-02/), [rodada 3](../resultados/20261112-171429-diag-vus-02/); [20 VUs, rodada 1](../resultados/20261112-171643-diag-vus-20/), [rodada 2](../resultados/20261112-171844-diag-vus-20/), [rodada 3](../resultados/20261112-172041-diag-vus-20/).
+
+| Perfil | Janela efetiva (s), por rodada | Req/s, por rodada | p95 geral (ms), por rodada | Mediana req/s | Mediana p95 (ms) | Mediana da latência mediana (ms) |
+|---|---|---|---|---:|---:|---:|
+| 2 VUs | 62,2 / 60,8 / 60,1 | 3,05 / 3,39 / 3,81 | 1.777,5 / 1.793,6 / 1.713,6 | 3,39 | 1.777,5 | 412,0 |
+| 20 VUs | 67,9 / 65,9 / 64,0 | 3,96 / 3,51 / 3,61 | 15.984,4 / 23.820,4 / 23.399,1 | 3,61 | 23.399,1 | 1.186,8 |
+
+Com 20 VUs, a mediana do p95 foi cerca de 13 vezes a de 2 VUs, enquanto a mediana de throughput mudou pouco (3,39 para 3,61 req/s). Isso é forte evidência de sensibilidade da latência à concorrência e é compatível com contenção/fila; **não prova que o p95 seja principalmente fila nem que exista uma capacidade sustentável específica**. Parte do tempo continua sendo execução das consultas, e o teste não mede separadamente espera e serviço.
+
+As rodadas foram feitas em blocos (primeiro todas as de 2 VUs, depois todas as de 20 VUs), não alternadas. Outros containers continuavam ativos. Além disso, o p95 mediano de 20 VUs nesta série foi 23,4s, contra 17,0s na série anterior com o mesmo índice. Portanto, variação temporal e carga externa podem explicar parte da diferença; o diagnóstico não é uma comparação causal nem substitui uma repetição controlada.
+
+### Integridade das métricas de recursos
+
+Na conferência dos arquivos, `recursos.csv` tinha uma amostra por container a mais que `recursos.txt` em todas as três medições do experimento 01 e em cinco das seis rodadas deste diagnóstico. Também há máximos de CPU em `recursos.txt` menores que amostras correspondentes no CSV (por exemplo, 9,5% contra 30,48% para a API na primeira rodada do experimento 01). Não alterei os arquivos gerados. Até reconciliar a agregação de [medir.sh](../scripts/medir.sh), não usar `cpu_max` nem tratar essas médias como agregações exatas de todo o CSV; por isso, o diagnóstico acima se baseia nas métricas HTTP do k6 e não tira conclusão de CPU/memória.
+
 ## Próximos experimentos sugeridos
 
-1. Fazer um diagnóstico de carga com poucos VUs (por exemplo, 1–2) e comparar com 20 VUs na mesma versão, para investigar a hipótese de contenção. Não usar essa rodada como resultado oficial do índice.
-2. Em mudança isolada, testar `pedidos(cliente_id, criado_em DESC, id DESC)` para o filtro e a ordenação de `/clientes/:id/pedidos`; preservar o índice do experimento 01 e medir o efeito incremental.
-3. Separadamente, comparar N+1 e pooling na API, sempre verificando o contrato e os efeitos em todas as rotas.
-4. Depois, testar o índice funcional em `lower(email)`, `pedidos(status, criado_em DESC, id DESC)`, `pg_trgm` e alternativas para relatórios, cada qual em experimento próprio.
-5. Após observar esses planos, decidir se vale testar paralelismo, JIT ou configuração do PostgreSQL; comparar CPU, memória, latência e espaço, além de req/s.
-6. Se a atribuição por consulta seguir necessária, planejar uma captura com `pg_stat_statements` em mudança diagnóstica separada e reinício documentado.
+1. Se for necessária uma conclusão mais forte sobre concorrência, repetir os perfis de 2 e 20 VUs alternando a ordem, em ambiente estável e sem outras cargas relevantes; manter como diagnóstico, não como resultado oficial antes/depois.
+2. Se a atribuição do ganho ao índice for necessária, medir baseline sem índice e versão com índice nas mesmas condições e no mesmo período, com três repetições por versão.
+3. Reconciliar a agregação dos dados de recursos sem editar os resultados já gravados nem a régua protegida; até lá, limitar as conclusões a HTTP/k6 e aos planos.
+4. Depois, em experimento separado, testar `pedidos(cliente_id, criado_em DESC, id DESC)` preservando o índice atual; verificar contrato, plano, custo em espaço e efeitos em todas as rotas.
+5. Separadamente, comparar N+1 e pooling na API; depois testar `lower(email)`, status/paginação, `pg_trgm` e alternativas para relatórios, cada qual isoladamente.
+6. Após observar esses planos, decidir se vale testar paralelismo, JIT ou configuração do PostgreSQL; se necessário, planejar ativação de `pg_stat_statements` como mudança diagnóstica separada.
 
 Esses itens são hipóteses futuras. O experimento 01 foi concluído e seus resultados completos estão nas pastas ligadas acima.
