@@ -1,0 +1,17 @@
+Medição: 02-control-fresh-on-3
+Carga: 20 usuários virtuais por 60s
+
+Requisições:        251
+Requisições/s:      3.74
+Tempo de resposta:  mediana 991.3 ms | p95 15054.2 ms | p99 37710.4 ms
+Erros:              0.00%
+
+Por rota:
+rota                  req       mediana       p95           p99           erros   
+cliente               62        273.8 ms      696.6 ms      1098.9 ms     0.0%    
+cliente-por-email     41        872.4 ms      1712.9 ms     2181.1 ms     0.0%    
+pedidos-do-cliente    54        9673.9 ms     12774.9 ms    13733.1 ms    0.0%    
+pedidos-por-status    33        9798.1 ms     13569.4 ms    14820.3 ms    0.0%    
+busca-produtos        43        483.6 ms      987.9 ms      1167.5 ms     0.0%    
+vendas-por-dia        15        16984.1 ms    43661.7 ms    44116.8 ms    0.0%    
+top-produtos          3         15108.1 ms    26371.3 ms    27372.5 ms    0.0%    

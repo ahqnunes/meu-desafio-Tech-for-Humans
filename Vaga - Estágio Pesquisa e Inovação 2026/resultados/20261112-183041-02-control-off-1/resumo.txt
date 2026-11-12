@@ -1,0 +1,17 @@
+Medição: 02-control-off-1
+Carga: 20 usuários virtuais por 60s
+
+Requisições:        188
+Requisições/s:      2.58
+Tempo de resposta:  mediana 1649.7 ms | p95 25494.3 ms | p99 33814.8 ms
+Erros:              0.00%
+
+Por rota:
+rota                  req       mediana       p95           p99           erros   
+cliente               50        384.6 ms      1462.4 ms     2012.2 ms     0.0%    
+cliente-por-email     33        1502.9 ms     2154.1 ms     2337.8 ms     0.0%    
+pedidos-do-cliente    40        22131.9 ms    29099.2 ms    34456.3 ms    0.0%    
+pedidos-por-status    22        9504.5 ms     17169.6 ms    19433.5 ms    0.0%    
+busca-produtos        29        894.9 ms      2062.0 ms     2231.4 ms     0.0%    
+vendas-por-dia        12        10591.4 ms    13848.5 ms    13849.7 ms    0.0%    
+top-produtos          2         29630.6 ms    45375.4 ms    46774.9 ms    0.0%    

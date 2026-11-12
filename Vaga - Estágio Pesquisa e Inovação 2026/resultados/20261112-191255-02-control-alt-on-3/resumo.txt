@@ -1,0 +1,17 @@
+Medição: 02-control-alt-on-3
+Carga: 20 usuários virtuais por 60s
+
+Requisições:        324
+Requisições/s:      4.91
+Tempo de resposta:  mediana 1379.5 ms | p95 11382.1 ms | p99 17757.7 ms
+Erros:              0.00%
+
+Por rota:
+rota                  req       mediana       p95           p99           erros   
+cliente               81        271.0 ms      524.9 ms      693.3 ms      0.0%    
+cliente-por-email     51        1379.7 ms     2025.0 ms     2507.3 ms     0.0%    
+pedidos-do-cliente    65        8190.3 ms     11856.5 ms    13504.4 ms    0.0%    
+pedidos-por-status    41        7227.6 ms     13418.9 ms    15258.1 ms    0.0%    
+busca-produtos        59        692.9 ms      1380.8 ms     1495.5 ms     0.0%    
+vendas-por-dia        23        5032.3 ms     9735.6 ms     10126.9 ms    0.0%    
+top-produtos          4         26713.7 ms    41869.0 ms    43089.8 ms    0.0%    

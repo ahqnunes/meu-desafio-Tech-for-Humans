@@ -1,0 +1,5 @@
+container                            amostras  cpu_media    cpu_max    mem_media      mem_max
+desafio-performance-indexfresh-api-1       35      16.9%       9.3%     32.5 MiB     46.1 MiB
+desafio-performance-indexfresh-banco-1       35      93.9%      99.8%    247.2 MiB     86.7 MiB
+
+cpu_percentual: 100% = 1 CPU inteira.
