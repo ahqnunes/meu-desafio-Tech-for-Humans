@@ -307,6 +307,8 @@ Não edite esses arquivos. Commite as pastas da linha de base antes da primeira 
 3. Meça pelo menos 3 vezes com o mesmo rótulo: `scripts/medir.sh 01-<o-que-mudou>`.
 4. Commite as pastas de `resultados/` dessa mudança em um commit separado.
 
+No Git Bash do Windows, defina `export MSYS_NO_PATHCONV=1` antes de executar `scripts/medir.sh`, para impedir que caminhos absolutos de dentro dos containers, como `/carga/teste-carga.js`, sejam convertidos em caminhos locais.
+
 Os parâmetros da carga podem ser alterados por variáveis de ambiente. Use os mesmos valores em todas as medições que você for comparar.
 
 | Variável | Padrão | O que controla |

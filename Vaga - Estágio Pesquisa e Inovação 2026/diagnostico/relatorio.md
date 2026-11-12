@@ -19,7 +19,7 @@ Evidências:
 As três execuções usaram 20 VUs, duração configurada de 60 s, aquecimento de 15 s e semente 42. As três mantiveram o contrato e registraram zero erros. A tabela abaixo transcreve os arquivos de cada execução. CPU e memória são as médias calculadas pelo `medir.sh` a partir das amostras de `recursos.csv`.
 
 | Execução e evidência | Requisições | Req/s | Duração k6 (s) | p95 geral (ms) | Erros | Banco CPU / memória média | API CPU / memória média |
-|---|---:|---:|---:|---:|---:|---:|---:|
+|---|---:|---:|---|---:|---:|---:|
 | [172817](../resultados/20261107-172817-00-linha-de-base/) | 197 | 2,84 | 69,3 | 23.228,1 | 0% | 91,7% / 390,3 MiB | 9,9% / 31,6 MiB |
 | [173048](../resultados/20261107-173048-00-linha-de-base/) | 173 | 2,47 | 70,2 | 26.412,7 | 0% | 90,4% / 374,7 MiB | 8,6% / 30,5 MiB |
 | [173256](../resultados/20261107-173256-00-linha-de-base/) | 180 | 2,62 | 68,6 | 24.812,1 | 0% | 86,9% / 377,0 MiB | 9,6% / 31,1 MiB |
@@ -111,12 +111,45 @@ O `effective_cache_size` é uma estimativa usada pelo planner, não memória res
 
 `last_vacuum` estava vazio e `last_autovacuum` tinha horário para as quatro tabelas. A coleta não registrou `relallvisible`/visibilidade por página; portanto, não conclui se um index-only scan ajudaria o `COUNT`.
 
+## Experimento 01 — índice em `itens_pedido(pedido_id)`
+
+**Hipótese:** um índice B-tree simples em `itens_pedido(pedido_id)` evita varrer a tabela inteira para localizar os itens de cada pedido. Foi a única mudança de performance: [03-indice-itens-pedido.sql](../banco/03-indice-itens-pedido.sql). O contrato foi mantido nos 42 casos antes da carga e em cada uma das três medições.
+
+O índice ocupa **21 MB** (`pg_size_pretty`). O plano da consulta de itens mudou de `Parallel Seq Scan` para `Index Scan`; ainda há sort por `id`. O detalhe está em [experimento-01-plano.txt](./experimento-01-plano.txt). Nos relatórios, vendas passou de `Parallel Hash Join` com varredura sequencial dos itens para `Nested Loop` com o novo índice (155,877 ms no plano isolado, contra 340,660 ms no plano original). Top produtos continuou com `Parallel Seq Scan` dos itens (2.046,655 ms, contra 2.112,070 ms no plano original). Esses tempos são de execuções isoladas e não diretamente comparáveis como teste de carga; planos novos em [experimento-01-planos-relatorios.txt](./experimento-01-planos-relatorios.txt).
+
+### Medições
+
+As três execuções usaram commit `e3771f3`, 20 VUs, 60s nominais, aquecimento de 15s e seed 42; cada `contexto.txt` registra zero arquivos alterados. Foram executadas em 12/11, cinco dias depois da baseline de 07/11. No Git Bash do Windows, foi necessário definir `MSYS_NO_PATHCONV=1` para impedir que o argumento `/carga/teste-carga.js` fosse reescrito como caminho local; a tentativa inicial sem a variável falhou antes de executar o k6 e foi excluída. As pastas completas têm todos os arquivos, inclusive resultados por rota, contrato e recursos.
+
+| Execução | Janela efetiva (s) | Requisições | Req/s | p95 geral (ms) | Banco CPU média | Banco memória média | API memória média |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| [161707](../resultados/20261112-161707-01-indice-itens-pedido/) | 65,7 | 281 | 4,28 | 16.257,3 | 78,8% | 391,7 MiB | 44,2 MiB |
+| [161931](../resultados/20261112-161931-01-indice-itens-pedido/) | 66,2 | 260 | 3,93 | 16.981,7 | 81,6% | 365,7 MiB | 91,5 MiB |
+| [162145](../resultados/20261112-162145-01-indice-itens-pedido/) | 80,7 | 269 | 3,33 | 18.388,5 | 66,8% | 385,7 MiB | 80,1 MiB |
+| **Mediana do experimento** | **66,2** | **269** | **3,93** | **16.981,7** | **78,8%** | **385,7 MiB** | **80,1 MiB** |
+
+Em comparação, a mediana da linha de base foi 2,62 req/s, p95 geral de 24.812,1 ms, banco a 90,4% de CPU e 377,0 MiB, API a 31,1 MiB; erros foram 0% nas duas séries. O p95 geral caiu 31,6% e a taxa subiu 50% na mediana. A rota diretamente relacionada, `pedidos-do-cliente`, teve mediana dos p95 por execução de 29.966 ms para 15.737 ms (amostras por execução: 37–40 na baseline, 54–59 no experimento).
+
+| Rota | p95 mediano baseline (ms) | p95 mediano com índice (ms) | Amostras por execução: baseline → experimento |
+|---|---:|---:|---:|
+| `cliente` | 660,2 | 671,4 | 47–51 → 63–68 |
+| `cliente-por-email` | 3.718,2 | 4.798,1 | 28–36 → 42–45 |
+| `pedidos-do-cliente` | 29.966,0 | 15.737,0 | 37–40 → 54–59 |
+| `pedidos-por-status` | 15.433,6 | 18.934,4 | 20–22 → 36–38 |
+| `busca-produtos` | 1.778,6 | 950,7 | 27–33 → 44–50 |
+| `vendas-por-dia` | 14.557,6 | 46.518,2 | 12–13 → 16–20 |
+| `top-produtos` | 16.200,0 | 32.524,4 | 1–2 → 3–4 |
+
+As amostras por rota são pequenas, sobretudo para relatórios; esses p95 não são estimativas robustas de cauda. A aparente piora de vendas na carga é um sinal para acompanhar, não prova de regressão: o plano isolado passou a usar o índice e reduziu o trabalho de 340,660 ms para 155,877 ms. Top produtos teve só 1–4 amostras por execução e continuou varrendo itens no plano; seu p95 não é interpretável. A média de memória do banco aumentou 8,7 MiB e a da API 49,0 MiB frente à baseline, então o resultado não deve ser descrito como redução de recursos.
+
+**Conclusão provisória:** manter o índice para o próximo experimento, pois o plano usa o índice e as medianas gerais e da rota de pedidos melhoraram. A comparação ainda não isola completamente variações de ambiente: baseline e experimento ocorreram em dias diferentes; containers de outros projetos estavam ativos durante a série nova; e a terceira janela efetiva foi 80,7s por causa do encerramento gracioso de requisições. Portanto, os resultados são um sinal favorável, não prova causal definitiva. Os dados brutos não foram alterados.
+
 ## Próximos experimentos sugeridos
 
-1. Pesquisar e testar índices em grupos isolados, sem reunir índices diferentes num único experimento. A primeira hipótese é `itens_pedido(pedido_id)` (ou `(pedido_id, id)` se o plano/ordenação justificar); medir tamanho com `pg_relation_size`, verificar o contrato e medir as sete rotas, pois o índice também pode afetar os relatórios.
-2. Separadamente, testar `pedidos(cliente_id, criado_em DESC, id DESC)` e reavaliar o N+1 de pedidos do cliente. Registrar se as duas mudanças foram isoladas e os efeitos medidos.
-3. Só depois comparar o índice de expressão em `lower(email)`, `pedidos(status, criado_em DESC, id DESC)`, `pg_trgm` e alternativas para relatórios, cada qual em experimento próprio.
-4. Após observar os planos com índices, decidir se vale testar paralelismo, JIT ou configurações do PostgreSQL; comparar CPU, memória, latência e espaço, além de req/s.
+1. Em mudança isolada, testar `pedidos(cliente_id, criado_em DESC, id DESC)` para o filtro e a ordenação de `/clientes/:id/pedidos`; preservar o índice do experimento 01 e medir o efeito incremental.
+2. Separadamente, comparar N+1 e pooling na API, sempre verificando o contrato e os efeitos em todas as rotas.
+3. Depois, testar o índice funcional em `lower(email)`, `pedidos(status, criado_em DESC, id DESC)`, `pg_trgm` e alternativas para relatórios, cada qual em experimento próprio.
+4. Após observar esses planos, decidir se vale testar paralelismo, JIT ou configuração do PostgreSQL; comparar CPU, memória, latência e espaço, além de req/s.
 5. Se a atribuição por consulta seguir necessária, planejar uma captura com `pg_stat_statements` em mudança diagnóstica separada e reinício documentado.
 
-Esses itens são hipóteses de trabalho, não resultados de otimização. Nenhuma mudança de performance foi feita nesta etapa.
+Esses itens são hipóteses futuras. O experimento 01 foi concluído e seus resultados completos estão nas pastas ligadas acima.
