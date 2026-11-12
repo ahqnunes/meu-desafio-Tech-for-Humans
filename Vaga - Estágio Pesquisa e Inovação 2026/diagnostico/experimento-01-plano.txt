@@ -1,0 +1,30 @@
+Experimento 01 — índice em itens_pedido(pedido_id)
+Data: 2026-11-12
+Commit da mudança de esquema: a630b53
+
+Tamanho do índice após a carga inicial:
+ index_name                 | size
+----------------------------+-------
+ idx_itens_pedido_pedido_id | 21 MB
+
+Consulta:
+EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)
+SELECT * FROM itens_pedido WHERE pedido_id = 329786 ORDER BY id;
+
+Plano após a criação do índice:
+Sort  (cost=8.54..8.55 rows=4 width=20) (actual rows=2 loops=1)
+  Sort Key: id
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=3 read=4
+  ->  Index Scan using idx_itens_pedido_pedido_id on itens_pedido
+        (cost=0.43..8.50 rows=4 width=20) (actual rows=2 loops=1)
+        Index Cond: (pedido_id = 329786)
+        Buffers: shared read=4
+Planning:
+  Buffers: shared hit=80 read=5 dirtied=2
+Planning Time: 76.196 ms
+Execution Time: 0.130 ms
+
+O plano usa o novo índice e ainda ordena os poucos itens por id. Esta é uma
+observação isolada, sem carga concorrente; não é medida de antes/depois nem
+evidência do efeito na latência das rotas.
