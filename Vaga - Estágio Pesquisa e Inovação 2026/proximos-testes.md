@@ -55,9 +55,9 @@ As ideias abaixo foram pesquisadas, mas ainda não foram testadas nesta aplicaç
 - **Como testar:** testar separadamente a reescrita do filtro/índice e, em outro experimento, uma view materializada; comparar resposta e frescor dos dados além de latência e custo de armazenamento/refresh.
 - **Necessário/limites:** esclarecer a exigência de atualidade antes de escolher materialização; medir todas as rotas. A carga atual cobre janela móvel de sete dias e top produtos com limite 10, não toda a faixa permitida pela API.
 
-### Configuração e custo de recursos
+### Corrigir e validar a leitura de recursos
 
-- **Fonte/evidência:** [documentação PostgreSQL 16 de recursos](https://www.postgresql.org/docs/16/runtime-config-resource.html), [limites de recursos do Docker](https://docs.docker.com/engine/containers/resource_constraints/) e auditoria em [diagnostico/relatorio.md](diagnostico/relatorio.md).
+- **Fonte/evidência:** inspeção somente de leitura do agregador em [scripts/medir.sh](scripts/medir.sh) e auditoria em [diagnostico/relatorio.md](diagnostico/relatorio.md); contexto técnico: [documentação PostgreSQL 16 de recursos](https://www.postgresql.org/docs/16/runtime-config-resource.html) e [limites de recursos do Docker](https://docs.docker.com/engine/containers/resource_constraints/).
 - **Hipótese:** ajustes de paralelismo, `work_mem` ou limites podem alterar throughput e custo, mas não se presume melhora.
-- **Como testar:** primeiro compreender as divergências entre `recursos.csv` e `recursos.txt`; depois alterar um único parâmetro versionado por experimento, verificar contrato e medir três vezes com a mesma carga.
-- **Necessário/limites:** `work_mem` pode multiplicar por operação e sessão; limites de CPU podem causar throttling e memória pode causar OOM. Não atribuir resultados a CPU/memória enquanto os agregados não forem confiáveis e não editar a régua protegida.
+- **Como testar:** o código atual sugere comparação textual no cálculo do pico e possível corrida ao terminar a coleta. Como `scripts/` é régua protegida pelo desafio, não editar o arquivo. Primeiro obter autorização ou um procedimento de validação permitido; então comparar agregados com amostras brutas e testar o encerramento do coletor. Só depois fazer experimentos separados de parâmetros e limites, três medições por variante.
+- **Necessário/limites:** `work_mem` pode multiplicar por operação e sessão; limites de CPU podem causar throttling e memória pode causar OOM. Não atribuir resultados a CPU/memória enquanto agregados não forem confiáveis e não alterar os arquivos protegidos.
