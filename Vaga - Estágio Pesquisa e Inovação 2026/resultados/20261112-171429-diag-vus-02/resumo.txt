@@ -1,0 +1,17 @@
+Medição: diag-vus-02
+Carga: 2 usuários virtuais por 60s
+
+Requisições:        229
+Requisições/s:      3.81
+Tempo de resposta:  mediana 334.1 ms | p95 1713.6 ms | p99 3214.8 ms
+Erros:              0.00%
+
+Por rota:
+rota                  req       mediana       p95           p99           erros   
+cliente               48        79.1 ms       427.7 ms      553.1 ms      0.0%    
+cliente-por-email     36        143.2 ms      269.4 ms      393.0 ms      0.0%    
+pedidos-do-cliente    48        813.3 ms      1783.9 ms     2138.7 ms     0.0%    
+pedidos-por-status    40        645.4 ms      2340.7 ms     3093.3 ms     0.0%    
+busca-produtos        35        93.0 ms       183.8 ms      240.3 ms      0.0%    
+vendas-por-dia        18        638.5 ms      1657.3 ms     2272.4 ms     0.0%    
+top-produtos          4         3204.2 ms     3462.4 ms     3495.4 ms     0.0%    
