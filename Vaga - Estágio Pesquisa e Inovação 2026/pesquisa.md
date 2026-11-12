@@ -96,7 +96,7 @@ Para cumprir o limite de 6–8 referências e evitar concentração em um único
 7. **Configuração do banco:** documentação PostgreSQL 16, [Resource Consumption](https://www.postgresql.org/docs/16/runtime-config-resource.html).
 8. **Limites do container:** Docker, [Resource constraints](https://docs.docker.com/engine/containers/resource_constraints/).
 
-As fontes de refresh concorrente, paginação, Zenn e Azure permanecem no registro de pesquisa para detalhes e ressalvas, mas não precisam entrar na seção curta do artigo, a menos que esses temas sejam escolhidos para a comparação final.
+Esta shortlist contém **8 fontes** para eventual citação na seção curta do artigo. A bibliografia numerada abaixo contém **21 referências consultadas** como inventário de pesquisa; não significa que todas serão citadas no texto final. As fontes de refresh concorrente, paginação, Zenn e Azure permanecem como material de apoio, mas não precisam entrar na seção curta, a menos que esses temas sejam escolhidos para a comparação final.
 
 ### Instrumentação
 

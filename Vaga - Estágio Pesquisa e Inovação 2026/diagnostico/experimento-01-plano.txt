@@ -11,6 +11,26 @@ Consulta:
 EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)
 SELECT * FROM itens_pedido WHERE pedido_id = 329786 ORDER BY id;
 
+Plano de baseline, antes do índice (transcrito de planos-consultas.txt,
+consulta GET /clientes/7/pedidos — itens do pedido 329786):
+Sort  (cost=18367.94..18367.95 rows=4 width=20) (actual rows=2 loops=1)
+  Sort Key: id
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=9558
+  ->  Gather  (cost=1000.00..18367.90 rows=4 width=20) (actual rows=2 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=9555
+        ->  Parallel Seq Scan on itens_pedido
+              (cost=0.00..17367.50 rows=2 width=20) (actual rows=1 loops=3)
+              Filter: (pedido_id = 329786)
+              Rows Removed by Filter: 499999
+              Buffers: shared hit=9555
+Planning:
+  Buffers: shared hit=73
+Planning Time: 0.380 ms
+Execution Time: 102.538 ms
+
 Plano após a criação do índice:
 Sort  (cost=8.54..8.55 rows=4 width=20) (actual rows=2 loops=1)
   Sort Key: id
@@ -25,6 +45,10 @@ Planning:
 Planning Time: 76.196 ms
 Execution Time: 0.130 ms
 
-O plano usa o novo índice e ainda ordena os poucos itens por id. Esta é uma
-observação isolada, sem carga concorrente; não é medida de antes/depois nem
-evidência do efeito na latência das rotas.
+O plano de baseline e o plano posterior documentam a mudança de
+`Parallel Seq Scan` para `Index Scan` para esta consulta e estes parâmetros.
+As execuções são planos isolados, sem carga concorrente, e não foram
+controladas como comparação de latência: o plano de baseline teve buffers
+reportados como hits; o plano posterior leu quatro buffers e teve tempo de
+planejamento maior. Os tempos do EXPLAIN não demonstram por si só o efeito
+nas rotas sob carga.
