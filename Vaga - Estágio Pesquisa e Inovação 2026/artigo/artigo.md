@@ -1,8 +1,8 @@
-# Um índice promissor, mas ainda sem prova causal de ganho
+# Um índice elevou o throughput em comparação controlada
 
 ## 1. Resumo
 
-A API de loja, sob carga fechada de 20 usuários virtuais, obteve medianas de 2,62 req/s antes e 3,93 req/s depois de adicionar um índice em `itens_pedido(pedido_id)`. O contrato foi mantido e o plano passou a usar o índice, mas as medições ocorreram em datas diferentes e uma repetição posterior com o mesmo índice teve 3,61 req/s. Portanto, o resultado é promissor, não causalmente conclusivo. CPU e memória também ficaram sem conclusão devido a inconsistências no agregador de recursos.
+Em uma comparação alternada de três rodadas por variante, a API de loja sob carga fechada de 20 usuários virtuais teve mediana de 2,71 req/s sem índice e 4,83 req/s com um índice em `itens_pedido(pedido_id)`. O p95 geral caiu de 23,7 s para 12,0 s. O contrato foi mantido, os containers externos foram pausados e as variantes usaram volumes novos com dados sintéticos iguais. Os resultados sustentam que o índice contribuiu para a melhora neste perfil de leitura, mas não garantem o mesmo efeito em outros ambientes ou cargas. CPU e memória seguem inconclusivas por inconsistências no agregador.
 
 ## 2. Contexto e diagnóstico
 
@@ -39,17 +39,20 @@ Escolhi começar pelo índice em `itens_pedido(pedido_id)`: o plano mostrava uma
 
 ## 6. Experimento e resultado
 
-| Mudança | p95 antes → depois | Req/s antes → depois | CPU/memória | Pastas de resultados | Conclusão |
-|---|---:|---:|---|---|---|
-| B-tree em `itens_pedido(pedido_id)` | 24.812,1 → 16.981,7 ms | 2,62 → 3,93 | Não confiáveis; auditoria pendente | [Antes](../resultados/20261107-172817-00-linha-de-base/), [173048](../resultados/20261107-173048-00-linha-de-base/), [173256](../resultados/20261107-173256-00-linha-de-base/); [depois](../resultados/20261112-161707-01-indice-itens-pedido/), [161931](../resultados/20261112-161931-01-indice-itens-pedido/), [162145](../resultados/20261112-162145-01-indice-itens-pedido/) | Índice aparece no plano; comparação de carga não pareada, sem causalidade demonstrada. |
+| Variante | Req/s por rodada | Mediana req/s | p95 por rodada (ms) | Mediana p95 (ms) |
+|---|---|---:|---|---:|
+| Sem índice | 2,71 / 2,77 / 2,55 | 2,71 | 23.586,6 / 23.724,1 / 25.501,5 | 23.724,1 |
+| Com índice | 4,83 / 4,48 / 4,91 | 4,83 | 12.002,6 / 12.888,6 / 11.382,1 | 12.002,6 |
 
-O contrato de 42 casos foi mantido e as seis medições tiveram zero erros. A primeira série com índice ocorreu cinco dias depois da baseline; uma janela efetiva chegou a 80,7 s. Em diagnóstico posterior, três rodadas com o mesmo índice e 20 VUs tiveram throughput mediano de 3,61 req/s e p95 de 23,4 s. A oscilação do p95 entre séries impede tratá-lo como confirmação independente da melhora. Detalhes e resultados por rota estão em [experimentos.md](../experimentos.md).
+A versão sem índice (`9b6b69c`) e a versão com índice (`59124a7`) diferiram funcionalmente pelo arquivo SQL do índice; código da API, carga, dados sintéticos determinísticos e limites do Compose foram mantidos. Os dois bancos foram criados em volumes novos. Após três execuções preliminares por variante, a série principal alternou sem índice/com índice por três pares. Três rodadas exploratórias com índice em volume mais antigo foram preservadas, mas excluídas por diferença na idade do banco. Todas as rodadas usaram 20 VUs, 60 s nominais, 15 s de aquecimento e seed 42. Só um stack do desafio ficou ativo por vez, containers externos foram pausados, o contrato de 42 casos passou e houve zero erros. As pastas primárias estão em [sem índice](../resultados/20261112-185839-02-control-alt-off-1/), [rodadas 2](../resultados/20261112-190406-02-control-alt-off-2/) e [3](../resultados/20261112-191019-02-control-alt-off-3/); e [com índice](../resultados/20261112-190132-02-control-alt-on-1/), [rodadas 2](../resultados/20261112-190751-02-control-alt-on-2/) e [3](../resultados/20261112-191255-02-control-alt-on-3/).
+
+Na mediana, o throughput aumentou 78,1% e o p95 caiu 49,4%. O índice ocupa 21 MB e aparece no plano posterior. Esses dados são mais fortes que as capturas iniciais, feitas em datas diferentes, que permanecem exploratórias. A comparação controlada sustenta uma contribuição do índice para este perfil sintético; não estabelece redução de recursos ou benefício em escrita. CPU e memória não foram usadas porque o agregador permanece sob auditoria. Os detalhes e resultados por rota estão em [experimentos.md](../experimentos.md).
 
 ## 7. Limites e testes futuros
 
-As medições antes/depois foram feitas em datas diferentes, com condições que não foram pareadas; logo, o índice foi escolhido por evidência do plano, mas seu efeito no throughput permanece incerto. O teste de 2 versus 20 VUs mostrou throughput quase estável (3,39 para 3,61 req/s) e latência maior sob 20 VUs, mas não separa execução de espera. A amostragem por rota é pequena para estimar p95, especialmente nos relatórios.
+As capturas iniciais antes/depois foram feitas em datas diferentes, mas a série alternada posterior reduziu esse risco e sustenta o efeito sob as condições testadas. Ainda assim, há apenas três rodadas por variante em uma máquina e um perfil de leitura sintético; isso não estabelece capacidade universal, impacto em escrita ou custo total. O teste separado de 2 versus 20 VUs mostrou throughput quase estável (3,39 para 3,61 req/s) e latência maior sob 20 VUs, mas foi feito em blocos e não separa execução de espera. A amostragem por rota é pequena para estimar p95, especialmente nos relatórios.
 
-O agregador de recursos aparenta comparar picos de CPU como texto e, em uma execução, sumarizar 36 amostras enquanto o CSV contém 37. Não alterei `scripts/`, protegido pelo desafio; por isso, não afirmo economia de CPU/memória. Uma repetição pareada e uma forma autorizada de validar as métricas poderiam mudar a conclusão. Os testes futuros — incluindo N+1, pool, outros índices e relatórios — estão em [proximos-testes.md](../proximos-testes.md).
+O agregador de recursos aparenta comparar picos de CPU como texto e, em uma execução, sumarizar 36 amostras enquanto o CSV contém 37. Não alterei `scripts/`, protegido pelo desafio; por isso, não afirmo economia de CPU/memória. Os próximos testes — incluindo N+1, pool, outros índices e relatórios — estão em [proximos-testes.md](../proximos-testes.md).
 
 ## 8. Referências
 

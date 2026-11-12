@@ -1,15 +1,6 @@
 # Próximos testes
 
-As ideias abaixo foram pesquisadas, mas ainda não foram testadas nesta aplicação. Benefícios são hipóteses; não há resultados de desempenho a reportar. Cada mudança deve ser isolada, registrada antes da medição, aprovada pelo contrato e medida três vezes com os mesmos parâmetros. Não alterar `carga/`, `scripts/` nem os arquivos protegidos do contrato e da geração de dados.
-
-## Validação do experimento já realizado
-
-### Comparação controlada do índice de itens
-
-- **Fonte/evidência:** planos antes e depois em [diagnostico/experimento-01-plano.txt](diagnostico/experimento-01-plano.txt) e resultados reunidos em [experimentos.md](experimentos.md).
-- **Hipótese:** medir em condições comparáveis mostrará se o índice em `itens_pedido(pedido_id)` causa uma mudança consistente no throughput, sem regressões relevantes nas demais rotas.
-- **Como testar:** comparar a versão sem o índice com a versão que o inclui, alternando a ordem das séries no mesmo ambiente e com três execuções por versão; manter 20 VUs, 60 s nominais, aquecimento de 15 s e seed 42. Recriar os dados de forma reproduzível em cada versão e registrar os commits e pastas do `medir.sh`.
-- **Necessário/limites:** fechar aplicações e containers alheios à carga; conservar os resultados já gravados; não interpretar CPU/memória até a inconsistência de agregação ser compreendida. A comparação existente é descritiva, não causal.
+As ideias abaixo foram pesquisadas, mas ainda não foram testadas nesta aplicação. Benefícios são hipóteses; não há resultados de desempenho a reportar para estes próximos experimentos. A comparação controlada do índice já foi concluída e está registrada em [experimentos.md](experimentos.md). Cada mudança futura deve ser isolada, registrada antes da medição, aprovada pelo contrato e medida três vezes com os mesmos parâmetros. Não alterar `carga/`, `scripts/` nem os arquivos protegidos do contrato e da geração de dados.
 
 ## Otimizações ainda não testadas
 

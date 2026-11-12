@@ -128,7 +128,7 @@ As três execuções usaram commit `e3771f3`, 20 VUs, 60s nominais, aquecimento 
 | [162145](../resultados/20261112-162145-01-indice-itens-pedido/) | 80,7 | 269 | 3,33 | 5.224,9 | 18.388,5 | 0% |
 | **Mediana do experimento** | **66,2** | **269** | **3,93** | **4.864,9** | **16.981,7** | **0%** |
 
-Como indicador principal de desempenho, a mediana de throughput foi 2,62 req/s na baseline e 3,93 req/s na primeira série com índice (+50%, descritivo). Uma repetição posterior com o mesmo índice teve 3,61 req/s de mediana em 20 VUs (+38% contra a baseline), mostrando que o throughput variou menos que o p95 entre as séries com índice. A mediana do p95 foi 24.812 ms na baseline, 16.982 ms na primeira série com índice e 23.399 ms na repetição diagnóstica do mesmo índice. A queda inicial de 7,83s quase se iguala à subida posterior de 6,42s; por isso, o p95 não deve ser apresentado como uma melhoria independente nem como evidência causal. A rota diretamente relacionada, `pedidos-do-cliente`, teve mediana dos p95 por execução de 29.966 ms para 15.737 ms, mas as amostras por execução (37–40 na baseline e 54–59 no experimento) e as condições entre séries também limitam a inferência. A baseline e a primeira série com índice ocorreram com cinco dias de diferença e outros containers ativos durante a série nova; uma janela efetiva foi 80,7s. As comparações entre séries permanecem descritivas, não causais.
+As primeiras séries, feitas em 07/11 e 12/11, tiveram medianas de 2,62 e 3,93 req/s; seus p95 foram 24.812 e 16.982 ms. A repetição diagnóstica posterior com o índice teve 3,61 req/s e p95 de 23.399 ms. Essas capturas iniciais não são comparáveis de forma causal: datas e janelas diferiram, e a oscilação do p95 entre séries com o índice foi quase tão grande quanto a diferença inicial. Elas permanecem registradas como evidência exploratória; a avaliação principal passa a ser a repetição alternada descrita a seguir.
 
 | Rota | p95 mediano baseline (ms) | p95 mediano com índice (ms) | Amostras por execução: baseline → experimento |
 |---|---:|---:|---:|
@@ -142,9 +142,26 @@ Como indicador principal de desempenho, a mediana de throughput foi 2,62 req/s n
 
 As amostras por rota são pequenas, sobretudo para relatórios; esses p95 não são estimativas robustas de cauda. O p95 de vendas subiu nas amostras da carga apesar da mudança de plano isolado; com 12–20 observações por execução e condições não pareadas, o resultado é **inconclusivo**: não explica nem descarta regressão ou ruído. Top produtos teve só 1–4 amostras por execução e continuou varrendo itens no plano; seu p95 não é interpretável.
 
+### Repetição controlada — séries alternadas sem/com índice
+
+Em 12/11, comparei a versão sem o índice (`9b6b69c`) com a versão que o inclui (`59124a7`). A comparação do histórico confirmou que a mudança funcional relevante entre elas é o arquivo SQL do índice; código da API, carga, geração determinística dos dados, estrutura e limites do Compose permaneceram iguais. Cada variante usou um volume de banco recém-gerado com os mesmos dados sintéticos. Antes da série principal, cada banco teve três execuções preliminares, também preservadas em `resultados/`; elas não entram na tabela abaixo. Na série principal, alternei sem índice, com índice, sem índice, com índice, sem índice, com índice. Só um stack do desafio ficou ativo por vez, e os containers externos foram pausados durante as medições.
+
+As três execuções exploratórias com índice em um volume anterior ([1](../resultados/20261112-183330-02-control-on-1/), [2](../resultados/20261112-183902-02-control-on-2/), [3](../resultados/20261112-184416-02-control-on-3/)) também foram preservadas, mas não usadas na comparação principal porque aquele banco tinha idade diferente.
+
+Todas as execuções usaram 20 VUs, 60 s nominais, 15 s de aquecimento e seed 42. Os contratos passaram nos 42 casos e todas as rodadas tiveram zero erros.
+
+| Variante | Req/s por rodada | Mediana req/s | p95 por rodada (ms) | Mediana p95 (ms) |
+|---|---|---:|---|---:|
+| Sem índice | 2,71 / 2,77 / 2,55 | 2,71 | 23.586,6 / 23.724,1 / 25.501,5 | 23.724,1 |
+| Com índice | 4,83 / 4,48 / 4,91 | 4,83 | 12.002,6 / 12.888,6 / 11.382,1 | 12.002,6 |
+
+Pastas sem índice: [rodada 1](../resultados/20261112-185839-02-control-alt-off-1/), [rodada 2](../resultados/20261112-190406-02-control-alt-off-2/), [rodada 3](../resultados/20261112-191019-02-control-alt-off-3/). Pastas com índice: [rodada 1](../resultados/20261112-190132-02-control-alt-on-1/), [rodada 2](../resultados/20261112-190751-02-control-alt-on-2/), [rodada 3](../resultados/20261112-191255-02-control-alt-on-3/).
+
+Na mediana desta série, o throughput foi 78,1% maior e o p95 geral 49,4% menor com o índice. Como a única diferença funcional foi o índice, os volumes contêm os mesmos dados determinísticos e a ordem foi alternada, esta é evidência mais forte de que o índice contribuiu para a melhora neste perfil de leitura. Não demonstra redução de CPU/memória, custo total menor, benefício em cargas de escrita ou igual ganho em outros ambientes. As métricas de recursos continuam sem conclusão pela falha do agregador descrita adiante.
+
 O diagnóstico com a mesma versão e 2 versus 20 VUs está na seção seguinte. Ele mostra throughput quase estável com latência média e p95 muito maiores em 20 VUs, comportamento compatível com contenção/espera, mas não permite concluir que o p95 seja principalmente fila nem que a carga exceda uma capacidade sustentável específica.
 
-**Conclusão provisória:** o índice é usado no plano e é plausível mantê-lo para o próximo teste, mas a diferença de throughput entre baseline e índice ainda não é causalmente atribuível a ele. O throughput é o indicador principal nesta comparação; o p95 variou muito inclusive entre séries com o mesmo índice. O resultado de vendas por rota é inconclusivo, e o diagnóstico de VUs não separa espera de execução. Os dados brutos não foram alterados.
+**Conclusão provisória:** a repetição alternada sustenta que o índice contribuiu para aumentar throughput e reduzir o p95 geral neste workload sintético. A conclusão se limita a este banco, perfil de leitura e máquina; não prova economia de recursos nem benefício em escrita. O resultado de vendas por rota permanece inconclusivo, e o diagnóstico de VUs não separa execução de espera. Os dados brutos não foram alterados.
 
 ## Diagnóstico de concorrência — 2 versus 20 VUs
 
@@ -166,10 +183,9 @@ Na conferência dos arquivos, incluí também as três rodadas de baseline de 07
 ## Próximos experimentos sugeridos
 
 1. Se for necessária uma conclusão mais forte sobre concorrência, repetir os perfis de 2 e 20 VUs alternando a ordem, em ambiente estável e sem outras cargas relevantes; manter como diagnóstico, não como resultado oficial antes/depois.
-2. Se a atribuição do ganho ao índice for necessária, medir baseline sem índice e versão com índice nas mesmas condições e no mesmo período, com três repetições por versão.
-3. Reconciliar a agregação dos dados de recursos sem editar os resultados já gravados nem a régua protegida; até lá, limitar as conclusões a HTTP/k6 e aos planos.
-4. Depois, em experimento separado, testar `pedidos(cliente_id, criado_em DESC, id DESC)` preservando o índice atual; verificar contrato, plano, custo em espaço e efeitos em todas as rotas.
-5. Separadamente, comparar N+1 e pooling na API; depois testar `lower(email)`, status/paginação, `pg_trgm` e alternativas para relatórios, cada qual isoladamente.
-6. Após observar esses planos, decidir se vale testar paralelismo, JIT ou configuração do PostgreSQL; se necessário, planejar ativação de `pg_stat_statements` como mudança diagnóstica separada.
+2. Reconciliar ou validar por um procedimento autorizado a agregação dos dados de recursos sem editar medições existentes nem a régua protegida; até lá, limitar as conclusões a HTTP/k6 e aos planos.
+3. Em experimento separado, testar `pedidos(cliente_id, criado_em DESC, id DESC)` preservando o índice atual; verificar contrato, plano, custo em espaço e efeitos em todas as rotas.
+4. Separadamente, comparar N+1 e pooling na API; depois testar `lower(email)`, status/paginação, `pg_trgm` e alternativas para relatórios, cada qual isoladamente.
+5. Após observar esses planos, decidir se vale testar paralelismo, JIT ou configuração do PostgreSQL; se necessário, planejar ativação de `pg_stat_statements` como mudança diagnóstica separada.
 
 Esses itens são hipóteses futuras. O experimento 01 foi concluído e seus resultados completos estão nas pastas ligadas acima.
