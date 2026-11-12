@@ -31,7 +31,7 @@ As medianas foram calculadas separadamente por coluna, ordenando os três valore
 
 O `medir.sh` passa `DURACAO=60s` ao cenário k6 `constant-vus`, com `gracefulStop: 30s`. O teste não chama `sleep()` entre requisições: cada VU faz uma requisição e inicia a próxima ao terminar a anterior. Nos `resumo-k6.json`, `state.testRunDurationMs` foi 69.314,5 ms, 70.175,6 ms e 68.577,8 ms. A taxa impressa pelo k6 corresponde a `http_reqs.count / http_reqs.values.rate` (tempo efetivo do teste), não à contagem dividida pelos 60 segundos nominais. As requisições em andamento ao fim do cenário e o encerramento gracioso tornam a janela observada maior; portanto, não se deve inferir a taxa usando apenas a duração configurada.
 
-O perfil de carga usa páginas de pedidos entre 1 e 1000, busca produtos com termos fixos, relatórios de sete dias e `top-produtos?limite=10`. Não varia até 31 dias ou outros limites. As amostras por rota, na ordem das três execuções, foram:
+O perfil de carga escolhe páginas de pedidos entre 1 e 1000; busca produtos com os termos `cadeira`, `mesa`, `lumin`, `teclado`, `monitor`, `ergo`, `sem fio`, `portatil`, `modelo 12`, `slim`, `reforcada` e `webcam` (todos com pelo menos três caracteres); gera relatórios com janela móvel de sete dias; e chama `top-produtos?limite=10`. Não varia buscas com termos menores, relatórios até 31 dias ou outros limites de top produtos. O cenário é `constant-vus`, com 20 VUs, sem `sleep()` entre requisições e `gracefulStop=30s`. As amostras por rota, na ordem das três execuções, foram:
 
 | Rota | Peso configurado | Execução 1 | Execução 2 | Execução 3 | Faixa de amostras |
 |---|---:|---:|---:|---:|---:|
