@@ -16,16 +16,16 @@ Evidências:
 
 ## Linha de base observada
 
-As três execuções usaram 20 VUs, duração configurada de 60 s, aquecimento de 15 s e semente 42. As três mantiveram o contrato e registraram zero erros. A tabela abaixo transcreve os arquivos de cada execução. CPU e memória são as médias calculadas pelo `medir.sh` a partir das amostras de `recursos.csv`.
+As três execuções usaram 20 VUs, duração configurada de 60 s, aquecimento de 15 s e semente 42. As três mantiveram o contrato e registraram zero erros. A tabela abaixo transcreve as métricas HTTP do k6. CPU e memória não são incluídas porque a auditoria encontrou inconsistências entre `recursos.csv` e `recursos.txt` (detalhes na seção de integridade das métricas).
 
-| Execução e evidência | Requisições | Req/s | Duração k6 (s) | p95 geral (ms) | Erros | Banco CPU / memória média | API CPU / memória média |
-|---|---:|---:|---|---:|---:|---:|
-| [172817](../resultados/20261107-172817-00-linha-de-base/) | 197 | 2,84 | 69,3 | 23.228,1 | 0% | 91,7% / 390,3 MiB | 9,9% / 31,6 MiB |
-| [173048](../resultados/20261107-173048-00-linha-de-base/) | 173 | 2,47 | 70,2 | 26.412,7 | 0% | 90,4% / 374,7 MiB | 8,6% / 30,5 MiB |
-| [173256](../resultados/20261107-173256-00-linha-de-base/) | 180 | 2,62 | 68,6 | 24.812,1 | 0% | 86,9% / 377,0 MiB | 9,6% / 31,1 MiB |
-| **Mediana das três execuções** | **180** | **2,62** | **69,3** | **24.812,1** | **0%** | **90,4% / 377,0 MiB** | **9,6% / 31,1 MiB** |
+| Execução e evidência | Requisições | Req/s | Duração k6 (s) | Latência média (ms) | p95 geral (ms) | Erros |
+|---|---:|---:|---:|---:|---:|---:|
+| [172817](../resultados/20261107-172817-00-linha-de-base/) | 197 | 2,84 | 69,3 | 6.653,5 | 23.228,1 | 0% |
+| [173048](../resultados/20261107-173048-00-linha-de-base/) | 173 | 2,47 | 70,2 | 7.559,6 | 26.412,7 | 0% |
+| [173256](../resultados/20261107-173256-00-linha-de-base/) | 180 | 2,62 | 68,6 | 7.202,5 | 24.812,1 | 0% |
+| **Mediana das três execuções** | **180** | **2,62** | **69,3** | **7.202,5** | **24.812,1** | **0%** |
 
-As medianas foram calculadas separadamente por coluna, ordenando os três valores e escolhendo o valor central; não foram calculadas a partir de uma execução composta. Os números por execução vêm de `resumo.txt`, `resumo-k6.json` e `recursos.txt` nas pastas ligadas acima.
+As medianas foram calculadas separadamente por coluna, ordenando os três valores e escolhendo o valor central; não foram calculadas a partir de uma execução composta. Os números por execução vêm de `resumo.txt` e `resumo-k6.json` nas pastas ligadas acima.
 
 ### Janela de medição e amostras por rota
 
@@ -45,7 +45,7 @@ O perfil de carga escolhe páginas de pedidos entre 1 e 1000; busca produtos com
 
 Os p95 por rota com 1–2 observações (`top-produtos`) não são percentis informativos; mesmo 12–13 observações para vendas dão uma estimativa muito instável da cauda. Trate os percentis por rota da linha de base como indicativos, não como comparação conclusiva. O p95 geral tem mais amostras, mas ainda reflete esta carga fechada de apenas 20 VUs.
 
-Os 90,4% de CPU média do banco contra 9,6% da API são um forte indício de que o PostgreSQL é o principal consumidor de CPU nesta carga. Isso não prova que a latência seja fila nem separa espera de execução. Pela relação de Little, `N/X` estima o tempo médio no sistema num regime estável; com VUs fechados e sem pausa, não permite por si só decompor a resposta entre fila e serviço, nem demonstrar saturação causalmente.
+No modelo fechado e sem pausa, a relação de Little permite comparar a latência média observada com `N/X` (VUs divididos pela taxa de conclusão) num regime estável. Essa relação estima o tempo médio no sistema, mas não o decompõe entre fila e serviço nem prova, isoladamente, que a capacidade foi excedida. O diagnóstico de 2 versus 20 VUs, adicionado adiante, explora essa sensibilidade sem atribuir todo o p95 à fila.
 
 ## Achados e hipóteses
 
@@ -55,7 +55,7 @@ Na rota [`GET /clientes/:id/pedidos`](../api/src/rotas.js), o código busca os p
 
 O banco só tem índices de chave primária. No plano do cliente 7, a busca de pedidos fez `Parallel Seq Scan` em `pedidos` (500 mil linhas) e sort; levou 167,715 ms fora de carga. A consulta de itens do pedido 329786 fez `Parallel Seq Scan` em `itens_pedido` (1,5 milhão de linhas); o plano reportou 499.999 linhas filtradas e levou 102,538 ms. A busca do produto por ID, em contraste, usou a chave primária e levou 0,049 ms.
 
-**Hipótese:** varreduras completas repetidas, mais conexões abertas e fechadas por consulta, contribuem para a latência e o uso de CPU nessa rota, que representa 20% das chamadas. O código e os planos sustentam o mecanismo provável; o ganho de cada correção precisa ser medido isoladamente.
+**Hipótese:** varreduras completas repetidas, mais conexões abertas e fechadas por consulta, contribuem para a latência e o trabalho do banco nessa rota, que representa 20% das chamadas. O código e os planos sustentam o mecanismo provável; o ganho de cada correção precisa ser medido isoladamente.
 
 ### 2. A busca por e-mail não consegue usar a chave primária nem um índice existente
 
@@ -107,7 +107,7 @@ Configurações efetivas consultadas:
 
 O maior custo estimado nos planos salvos é aproximadamente 57.108, inferior ao `jit_above_cost` observado; nenhum dos planos apresenta bloco de JIT. Isso justifica não priorizar um ajuste de JIT agora, sem afirmar que o recurso nunca possa ajudar em outra consulta. Os planos de `pedidos`, itens, `COUNT`, página, vendas e top produtos usam `Gather`/scans paralelos; as consultas por chave primária e os planos de e-mail e busca de produtos não. Um teste de `max_parallel_workers_per_gather=0`, se feito, deve ser um experimento separado após os índices.
 
-O `effective_cache_size` é uma estimativa usada pelo planner, não memória reservada. A média de memória do banco durante a carga foi 377 MiB, frente ao limite de 512 MiB; isso torna aumentos de memória uma mudança que exige cautela e medição de custo.
+O `effective_cache_size` é uma estimativa usada pelo planner, não memória reservada. Como as métricas observadas de uso de memória não passaram na verificação de integridade descrita adiante, este relatório não usa esses valores para inferir pressão de memória nem justificar mudanças de configuração.
 
 `last_vacuum` estava vazio e `last_autovacuum` tinha horário para as quatro tabelas. A coleta não registrou `relallvisible`/visibilidade por página; portanto, não conclui se um index-only scan ajudaria o `COUNT`.
 
@@ -121,14 +121,14 @@ O índice ocupa **21 MB** (`pg_size_pretty`). O plano capturado antes da mudanç
 
 As três execuções usaram commit `e3771f3`, 20 VUs, 60s nominais, aquecimento de 15s e seed 42; cada `contexto.txt` registra zero arquivos alterados. Foram executadas em 12/11, cinco dias depois da baseline de 07/11. No Git Bash do Windows, foi necessário definir `MSYS_NO_PATHCONV=1` para impedir que o argumento `/carga/teste-carga.js` fosse reescrito como caminho local; a tentativa inicial sem a variável falhou antes de executar o k6 e foi excluída. As pastas completas têm todos os arquivos, inclusive resultados por rota, contrato e recursos.
 
-| Execução | Janela efetiva (s) | Requisições | Req/s | p95 geral (ms) | Banco CPU média | Banco memória média | API memória média |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| [161707](../resultados/20261112-161707-01-indice-itens-pedido/) | 65,7 | 281 | 4,28 | 16.257,3 | 78,8% | 391,7 MiB | 44,2 MiB |
-| [161931](../resultados/20261112-161931-01-indice-itens-pedido/) | 66,2 | 260 | 3,93 | 16.981,7 | 81,6% | 365,7 MiB | 91,5 MiB |
-| [162145](../resultados/20261112-162145-01-indice-itens-pedido/) | 80,7 | 269 | 3,33 | 18.388,5 | 66,8% | 385,7 MiB | 80,1 MiB |
-| **Mediana do experimento** | **66,2** | **269** | **3,93** | **16.981,7** | **78,8%** | **385,7 MiB** | **80,1 MiB** |
+| Execução | Janela efetiva (s) | Requisições | Req/s | Latência média (ms) | p95 geral (ms) | Erros |
+|---|---:|---:|---:|---:|---:|---:|
+| [161707](../resultados/20261112-161707-01-indice-itens-pedido/) | 65,7 | 281 | 4,28 | 4.540,1 | 16.257,3 | 0% |
+| [161931](../resultados/20261112-161931-01-indice-itens-pedido/) | 66,2 | 260 | 3,93 | 4.864,9 | 16.981,7 | 0% |
+| [162145](../resultados/20261112-162145-01-indice-itens-pedido/) | 80,7 | 269 | 3,33 | 5.224,9 | 18.388,5 | 0% |
+| **Mediana do experimento** | **66,2** | **269** | **3,93** | **4.864,9** | **16.981,7** | **0%** |
 
-Em comparação, a mediana da linha de base foi 2,62 req/s, p95 geral de 24.812,1 ms, banco a 90,4% de CPU e 377,0 MiB, API a 31,1 MiB; erros foram 0% nas duas séries. Descritivamente, o p95 geral foi 31,6% menor e a taxa 50% maior na mediana do experimento. A rota diretamente relacionada, `pedidos-do-cliente`, teve mediana dos p95 por execução de 29.966 ms para 15.737 ms (amostras por execução: 37–40 na baseline, 54–59 no experimento). Porém a memória média da API, que não mudou de código, variou de 31,1 MiB para 80,1 MiB; essa diferença não é efeito atribuível ao índice e é um sinal de que as janelas/runtime não foram equivalentes. Soma-se a isso a distância de cinco dias entre séries, outros containers ativos durante o experimento e a janela efetiva de 80,7s em uma execução. Logo, as diferenças de desempenho entre séries não podem ser atribuídas causalmente ao índice.
+Como indicador principal de desempenho, a mediana de throughput foi 2,62 req/s na baseline e 3,93 req/s na primeira série com índice (+50%, descritivo). Uma repetição posterior com o mesmo índice teve 3,61 req/s de mediana em 20 VUs (+38% contra a baseline), mostrando que o throughput variou menos que o p95 entre as séries com índice. A mediana do p95 foi 24.812 ms na baseline, 16.982 ms na primeira série com índice e 23.399 ms na repetição diagnóstica do mesmo índice. A queda inicial de 7,83s quase se iguala à subida posterior de 6,42s; por isso, o p95 não deve ser apresentado como uma melhoria independente nem como evidência causal. A rota diretamente relacionada, `pedidos-do-cliente`, teve mediana dos p95 por execução de 29.966 ms para 15.737 ms, mas as amostras por execução (37–40 na baseline e 54–59 no experimento) e as condições entre séries também limitam a inferência. A baseline e a primeira série com índice ocorreram com cinco dias de diferença e outros containers ativos durante a série nova; uma janela efetiva foi 80,7s. As comparações entre séries permanecem descritivas, não causais.
 
 | Rota | p95 mediano baseline (ms) | p95 mediano com índice (ms) | Amostras por execução: baseline → experimento |
 |---|---:|---:|---:|
@@ -140,28 +140,28 @@ Em comparação, a mediana da linha de base foi 2,62 req/s, p95 geral de 24.812,
 | `vendas-por-dia` | 14.557,6 | 46.518,2 | 12–13 → 16–20 |
 | `top-produtos` | 16.200,0 | 32.524,4 | 1–2 → 3–4 |
 
-As amostras por rota são pequenas, sobretudo para relatórios; esses p95 não são estimativas robustas de cauda. O p95 de vendas subiu nas amostras da carga apesar da mudança de plano isolado; com 12–20 observações por execução e condições não pareadas, o resultado é **inconclusivo**: não explica nem descarta regressão ou ruído. Top produtos teve só 1–4 amostras por execução e continuou varrendo itens no plano; seu p95 não é interpretável. A memória média do banco variou 377,0→385,7 MiB e a da API 31,1→80,1 MiB; não se observou redução geral de memória, e a diferença da API reforça a cautela sobre comparabilidade.
+As amostras por rota são pequenas, sobretudo para relatórios; esses p95 não são estimativas robustas de cauda. O p95 de vendas subiu nas amostras da carga apesar da mudança de plano isolado; com 12–20 observações por execução e condições não pareadas, o resultado é **inconclusivo**: não explica nem descarta regressão ou ruído. Top produtos teve só 1–4 amostras por execução e continuou varrendo itens no plano; seu p95 não é interpretável.
 
-Os p95 de 15–30s, 20 VUs e CPU média do banco de 90,4% na baseline e 78,8% na série com índice são compatíveis com uma carga pesada e possível contenção/saturação, mas não bastam para concluir que o p95 mede principalmente fila ou que a carga excede a capacidade sustentável. O teste usa VUs fechados, sem pausa, e não mede diretamente tempo em fila versus tempo de serviço. Para testar essa hipótese, falta um diagnóstico com poucos VUs, comparado ao perfil de 20 VUs, mantendo a mesma versão do código e os mesmos parâmetros; esse diagnóstico não deve ser misturado à série oficial antes/depois.
+O diagnóstico com a mesma versão e 2 versus 20 VUs está na seção seguinte. Ele mostra throughput quase estável com latência média e p95 muito maiores em 20 VUs, comportamento compatível com contenção/espera, mas não permite concluir que o p95 seja principalmente fila nem que a carga exceda uma capacidade sustentável específica.
 
-**Conclusão provisória:** o índice é usado no plano e é plausível mantê-lo para o próximo teste, mas a aparente melhora nas métricas de carga não é causalmente atribuível a ele com esta comparação. As janelas não foram equivalentes; o resultado de vendas é inconclusivo; e falta testar a sensibilidade a VUs. Os dados brutos não foram alterados.
+**Conclusão provisória:** o índice é usado no plano e é plausível mantê-lo para o próximo teste, mas a diferença de throughput entre baseline e índice ainda não é causalmente atribuível a ele. O throughput é o indicador principal nesta comparação; o p95 variou muito inclusive entre séries com o mesmo índice. O resultado de vendas por rota é inconclusivo, e o diagnóstico de VUs não separa espera de execução. Os dados brutos não foram alterados.
 
 ## Diagnóstico de concorrência — 2 versus 20 VUs
 
 Em 12/11, rodei três medições com 2 VUs e, em seguida, três com 20 VUs, mantendo a versão com o índice (commit `7412e60`), duração nominal de 60s, aquecimento de 15s e seed 42. Os seis `contexto.txt` registram zero arquivos alterados; todas as execuções mantiveram as 42 respostas do contrato e tiveram 0% de erros. As pastas têm os dados completos: [2 VUs, rodada 1](../resultados/20261112-171024-diag-vus-02/), [rodada 2](../resultados/20261112-171229-diag-vus-02/), [rodada 3](../resultados/20261112-171429-diag-vus-02/); [20 VUs, rodada 1](../resultados/20261112-171643-diag-vus-20/), [rodada 2](../resultados/20261112-171844-diag-vus-20/), [rodada 3](../resultados/20261112-172041-diag-vus-20/).
 
-| Perfil | Janela efetiva (s), por rodada | Req/s, por rodada | p95 geral (ms), por rodada | Mediana req/s | Mediana p95 (ms) | Mediana da latência mediana (ms) |
-|---|---|---|---|---:|---:|---:|
-| 2 VUs | 62,2 / 60,8 / 60,1 | 3,05 / 3,39 / 3,81 | 1.777,5 / 1.793,6 / 1.713,6 | 3,39 | 1.777,5 | 412,0 |
-| 20 VUs | 67,9 / 65,9 / 64,0 | 3,96 / 3,51 / 3,61 | 15.984,4 / 23.820,4 / 23.399,1 | 3,61 | 23.399,1 | 1.186,8 |
+| Perfil | Req/s, por rodada | Latência média HTTP, por rodada (ms) | `N/X` aprox., por rodada (ms) | Mediana req/s | Mediana latência média (ms) | Mediana `N/X` (ms) | Mediana p95 (ms) |
+|---|---|---|---|---:|---:|---:|---:|
+| 2 VUs | 3,05 / 3,39 / 3,81 | 653,0 / 589,1 / 524,9 | 654,8 / 590,4 / 525,2 | 3,39 | 589,1 | 590,4 | 1.777,5 |
+| 20 VUs | 3,96 / 3,51 / 3,61 | 4.842,0 / 5.500,1 / 5.392,0 | 5.046,6 / 5.704,1 / 5.538,1 | 3,61 | 5.392,0 | 5.538,1 | 23.399,1 |
 
-Com 20 VUs, a mediana do p95 foi cerca de 13 vezes a de 2 VUs, enquanto a mediana de throughput mudou pouco (3,39 para 3,61 req/s). Isso é forte evidência de sensibilidade da latência à concorrência e é compatível com contenção/fila; **não prova que o p95 seja principalmente fila nem que exista uma capacidade sustentável específica**. Parte do tempo continua sendo execução das consultas, e o teste não mede separadamente espera e serviço.
+Com dez vezes mais VUs, o throughput mediano subiu apenas de 3,39 para 3,61 req/s (cerca de 6,5%), enquanto a latência média passou de 589 ms para 5.392 ms e o p95 mediano de 1,78s para 23,40s. O throughput é a evidência principal de um platô para este perfil de rotas; o p95 reforça a sensibilidade à concorrência, mas é mais variável. As latências médias observadas são próximas de `N/X`, conforme esperado para este cenário fechado sem pausa. Isso estima o tempo médio no sistema, não divide esse tempo entre execução e espera; portanto, o platô é compatível com saturação/contenção, mas não prova sua causa.
 
 As rodadas foram feitas em blocos (primeiro todas as de 2 VUs, depois todas as de 20 VUs), não alternadas. Outros containers continuavam ativos. Além disso, o p95 mediano de 20 VUs nesta série foi 23,4s, contra 17,0s na série anterior com o mesmo índice. Portanto, variação temporal e carga externa podem explicar parte da diferença; o diagnóstico não é uma comparação causal nem substitui uma repetição controlada.
 
 ### Integridade das métricas de recursos
 
-Na conferência dos arquivos, `recursos.csv` tinha uma amostra por container a mais que `recursos.txt` em todas as três medições do experimento 01 e em cinco das seis rodadas deste diagnóstico. Também há máximos de CPU em `recursos.txt` menores que amostras correspondentes no CSV (por exemplo, 9,5% contra 30,48% para a API na primeira rodada do experimento 01). Não alterei os arquivos gerados. Até reconciliar a agregação de [medir.sh](../scripts/medir.sh), não usar `cpu_max` nem tratar essas médias como agregações exatas de todo o CSV; por isso, o diagnóstico acima se baseia nas métricas HTTP do k6 e não tira conclusão de CPU/memória.
+Na conferência dos arquivos, incluí também as três rodadas de baseline de 07/11. Em duas delas, `recursos.csv` tinha uma amostra por container a mais que `recursos.txt`; isso também ocorreu nas três rodadas do experimento 01 e em cinco das seis rodadas do diagnóstico de concorrência. No conjunto, 10 de 12 rodadas têm uma amostra extra no CSV. Além disso, os máximos de CPU em `recursos.txt` são menores que amostras correspondentes no CSV; por exemplo, a API da primeira baseline tem pico de 24,38% no CSV contra máximo reportado de 9,4%, e a primeira rodada do experimento 01 tem 30,48% contra 9,5%. Não alterei os arquivos gerados. Até reconciliar a agregação de [medir.sh](../scripts/medir.sh), este relatório não usa CPU ou memória como evidência ou argumento de comparação, nem trata os agregados de `recursos.txt` como resumo exato de todos os registros do CSV.
 
 ## Próximos experimentos sugeridos
 
