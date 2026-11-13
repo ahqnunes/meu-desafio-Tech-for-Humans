@@ -1,0 +1,17 @@
+Medição: 02-pedidos-cliente-fresh-on
+Carga: 20 usuários virtuais por 60s
+
+Requisições:        299
+Requisições/s:      3.89
+Tempo de resposta:  mediana 993.6 ms | p95 23737.9 ms | p99 41799.0 ms
+Erros:              0.00%
+
+Por rota:
+rota                  req       mediana       p95           p99           erros   
+cliente               72        287.9 ms      672.9 ms      1078.3 ms     0.0%    
+cliente-por-email     47        993.6 ms      2027.6 ms     2272.6 ms     0.0%    
+pedidos-do-cliente    58        3793.2 ms     7393.9 ms     9744.2 ms     0.0%    
+pedidos-por-status    42        9301.9 ms     25981.9 ms    37117.0 ms    0.0%    
+busca-produtos        55        319.3 ms      877.8 ms      1078.4 ms     0.0%    
+vendas-por-dia        22        19833.9 ms    40394.7 ms    44415.4 ms    0.0%    
+top-produtos          3         41795.1 ms    50250.8 ms    51002.4 ms    0.0%    

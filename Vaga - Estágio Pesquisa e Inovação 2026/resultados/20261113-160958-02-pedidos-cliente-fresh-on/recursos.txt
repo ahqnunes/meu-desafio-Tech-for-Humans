@@ -1,0 +1,5 @@
+container                            amostras  cpu_media    cpu_max    mem_media      mem_max
+desafio-index2-on-clean-api-1              36      16.1%       9.1%     45.2 MiB     88.5 MiB
+desafio-index2-on-clean-banco-1            36      73.8%      99.8%    396.8 MiB    459.1 MiB
+
+cpu_percentual: 100% = 1 CPU inteira.
