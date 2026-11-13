@@ -163,9 +163,24 @@ O diagnóstico com a mesma versão e 2 versus 20 VUs está na seção seguinte. 
 
 **Conclusão provisória:** a repetição alternada sustenta que o índice contribuiu para aumentar throughput e reduzir o p95 geral neste workload sintético. A conclusão se limita a este banco, perfil de leitura e máquina; não prova economia de recursos nem benefício em escrita. O resultado de vendas por rota permanece inconclusivo, e o diagnóstico de VUs não separa execução de espera. Os dados brutos não foram alterados.
 
+## Experimento 02 — índice para pedidos por cliente
+
+**Hipótese:** um B-tree em `pedidos(cliente_id, criado_em DESC, id DESC)` reduziria a varredura e ordenação de `GET /clientes/:id/pedidos`, cuja consulta filtra pelo cliente e ordena pelos outros dois campos. A mudança ficou isolada em `banco/04-indice-pedidos-cliente-criado-em.sql` (commit `64e4fe4`); API, carga, contrato, dados gerados e limites dos containers não mudaram.
+
+O baseline (`91a528e`) e a variante (`64e4fe4`) foram executados em volumes novos com os mesmos dados determinísticos. Houve três execuções preliminares por variante para aquecimento; elas foram preservadas, mas excluídas da comparação principal. Depois, medi três pares alternados sem índice/com índice, com apenas um stack do desafio ativo e os containers externos pausados. Todas as medições usaram 20 VUs, 60 s nominais, 15 s de aquecimento e seed 42. Os 42 casos do contrato passaram e as seis rodadas principais tiveram zero erros.
+
+| Variante | Req/s por rodada | Mediana req/s | p95 geral por rodada (ms) | Mediana p95 geral (ms) | p95 de `pedidos-do-cliente` por rodada (ms) | Mediana p95 da rota (ms) |
+|---|---|---:|---|---:|---|---:|
+| Sem índice | 4,69 / 5,23 / 4,86 | 4,86 | 11.374,7 / 9.983,8 / 12.090,6 | 11.374,7 | 12.305,5 / 11.204,8 / 13.104,1 | 12.305,5 |
+| Com índice | 5,65 / 5,77 / 5,90 | 5,77 | 10.198,6 / 10.165,1 / 8.899,7 | 10.165,1 | 9.893,3 / 8.551,4 / 8.539,9 | 8.551,4 |
+
+Resultados sem índice: [rodada 1](../resultados/20261113-161645-02-pedidos-cliente-alt-off/), [rodada 2](../resultados/20261113-162202-02-pedidos-cliente-alt-off/), [rodada 3](../resultados/20261113-162720-02-pedidos-cliente-alt-off/). Com índice: [rodada 1](../resultados/20261113-161925-02-pedidos-cliente-alt-on/), [rodada 2](../resultados/20261113-162441-02-pedidos-cliente-alt-on/), [rodada 3](../resultados/20261113-163002-02-pedidos-cliente-alt-on/). As execuções preliminares estão em [sem índice](../resultados/20261113-155959-02-pedidos-cliente-off/), [2](../resultados/20261113-160209-02-pedidos-cliente-off/), [3](../resultados/20261113-160418-02-pedidos-cliente-off/) e [com índice](../resultados/20261113-160958-02-pedidos-cliente-fresh-on/), [2](../resultados/20261113-161159-02-pedidos-cliente-fresh-on/), [3](../resultados/20261113-161358-02-pedidos-cliente-fresh-on/); não foram misturadas à comparação primária.
+
+A mediana do throughput geral aumentou 18,7%; o p95 geral caiu 10,6%, e o p95 da rota-alvo caiu 30,5%. O `EXPLAIN ANALYZE` representativo mudou de `Parallel Seq Scan` mais `Sort` para `Index Scan` pelo novo índice, que ocupa 19 MB. A captura confirma o caminho do plano, não uma comparação de latência: os caches diferiam e os tempos absolutos dos planos não devem ser comparados. As três diferenças de throughput tiveram a mesma direção, mas seis rodadas em uma única máquina sustentam apenas evidência favorável para este perfil sintético; não provam ganho universal nem economia de recursos. CPU e memória continuam sem conclusão pela inconsistência do agregador.
+
 ## Diagnóstico de concorrência — 2 versus 20 VUs
 
-Em 12/11, rodei três medições com 2 VUs e, em seguida, três com 20 VUs, mantendo a versão com o índice (commit `7412e60`), duração nominal de 60s, aquecimento de 15s e seed 42. Os seis `contexto.txt` registram zero arquivos alterados; todas as execuções mantiveram as 42 respostas do contrato e tiveram 0% de erros. As pastas têm os dados completos: [2 VUs, rodada 1](../resultados/20261112-171024-diag-vus-02/), [rodada 2](../resultados/20261112-171229-diag-vus-02/), [rodada 3](../resultados/20261112-171429-diag-vus-02/); [20 VUs, rodada 1](../resultados/20261112-171643-diag-vus-20/), [rodada 2](../resultados/20261112-171844-diag-vus-20/), [rodada 3](../resultados/20261112-172041-diag-vus-20/).
+Em 12/11, rodei três medições com 2 VUs e, em seguida, três com 20 VUs, mantendo a versão com o índice de itens (commit `7412e60`), duração nominal de 60s, aquecimento de 15s e seed 42. Os seis `contexto.txt` registram zero arquivos alterados; todas as execuções mantiveram as 42 respostas do contrato e tiveram 0% de erros. As pastas têm os dados completos: [2 VUs, rodada 1](../resultados/20261112-171024-diag-vus-02/), [rodada 2](../resultados/20261112-171229-diag-vus-02/), [rodada 3](../resultados/20261112-171429-diag-vus-02/); [20 VUs, rodada 1](../resultados/20261112-171643-diag-vus-20/), [rodada 2](../resultados/20261112-171844-diag-vus-20/), [rodada 3](../resultados/20261112-172041-diag-vus-20/).
 
 | Perfil | Req/s, por rodada | Latência média HTTP, por rodada (ms) | `N/X` aprox., por rodada (ms) | Mediana req/s | Mediana latência média (ms) | Mediana `N/X` (ms) | Mediana p95 (ms) |
 |---|---|---|---|---:|---:|---:|---:|
@@ -184,8 +199,7 @@ Na conferência dos arquivos, incluí também as três rodadas de baseline de 07
 
 1. Se for necessária uma conclusão mais forte sobre concorrência, repetir os perfis de 2 e 20 VUs alternando a ordem, em ambiente estável e sem outras cargas relevantes; manter como diagnóstico, não como resultado oficial antes/depois.
 2. Reconciliar ou validar por um procedimento autorizado a agregação dos dados de recursos sem editar medições existentes nem a régua protegida; até lá, limitar as conclusões a HTTP/k6 e aos planos.
-3. Em experimento separado, testar `pedidos(cliente_id, criado_em DESC, id DESC)` preservando o índice atual; verificar contrato, plano, custo em espaço e efeitos em todas as rotas.
-4. Separadamente, comparar N+1 e pooling na API; depois testar `lower(email)`, status/paginação, `pg_trgm` e alternativas para relatórios, cada qual isoladamente.
-5. Após observar esses planos, decidir se vale testar paralelismo, JIT ou configuração do PostgreSQL; se necessário, planejar ativação de `pg_stat_statements` como mudança diagnóstica separada.
+3. Separadamente, comparar N+1 e pooling na API; depois testar `lower(email)`, status/paginação, `pg_trgm` e alternativas para relatórios, cada qual isoladamente.
+4. Após observar esses planos, decidir se vale testar paralelismo, JIT ou configuração do PostgreSQL; se necessário, planejar ativação de `pg_stat_statements` como mudança diagnóstica separada.
 
 Esses itens são hipóteses futuras. O experimento 01 foi concluído e seus resultados completos estão nas pastas ligadas acima.

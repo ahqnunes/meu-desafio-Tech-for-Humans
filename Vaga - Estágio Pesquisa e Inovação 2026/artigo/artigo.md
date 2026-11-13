@@ -1,8 +1,8 @@
-# Um índice elevou o throughput em comparação controlada
+# Índices B-tree: resultados sob cargas controladas
 
 ## 1. Resumo
 
-Em uma comparação alternada de três rodadas por variante, a API de loja sob carga fechada de 20 usuários virtuais teve mediana de 2,71 req/s sem índice e 4,83 req/s com um índice em `itens_pedido(pedido_id)`. O p95 geral caiu de 23,7 s para 12,0 s. O contrato foi mantido, os containers externos foram pausados e as variantes usaram volumes novos com dados sintéticos iguais. Os resultados sustentam que o índice contribuiu para a melhora neste perfil de leitura, mas não garantem o mesmo efeito em outros ambientes ou cargas. CPU e memória seguem inconclusivas por inconsistências no agregador.
+Em duas comparações alternadas, índices B-tree elevaram o throughput mediano sob 20 usuários virtuais. Para `itens_pedido(pedido_id)`, passou de 2,71 para 4,83 req/s (+78,1%); para `pedidos(cliente_id, criado_em DESC, id DESC)`, de 4,86 para 5,77 req/s (+18,7%). O contrato foi mantido e os planos usaram os índices. Os resultados apoiam benefício neste workload sintético, mas não o garantem em outras cargas ou ambientes. CPU e memória seguem inconclusivas por inconsistências no agregador.
 
 ## 2. Contexto e diagnóstico
 
@@ -35,7 +35,7 @@ Essas opções não são intercambiáveis. Índices são uma mudança localizada
 
 ## 5. Solução escolhida e por quê
 
-Escolhi começar pelo índice em `itens_pedido(pedido_id)`: o plano mostrava uma varredura sequencial de 1,5 milhão de linhas para buscar itens de um pedido, e o índice podia ser aplicado em um arquivo SQL isolado, sem alterar a resposta da API. O índice resultante ocupa 21 MB. Deixei N+1 e pooling para mudanças separadas, pois combiná-los impediria atribuir o efeito. Não priorizei `pg_trgm` porque a busca de produtos levou cerca de 20 ms isolada e tem menor custo observado que os gargalos de pedidos e relatórios. Materialização e aumento de recursos têm riscos de frescor e custo que ainda não foram justificados por medições locais.
+Comecei pelo índice em `itens_pedido(pedido_id)`: o plano mostrava uma varredura de 1,5 milhão de linhas para buscar itens de um pedido. Em seguida, o plano de `/clientes/:id/pedidos` motivou o índice composto em `pedidos(cliente_id, criado_em DESC, id DESC)`. Ambos puderam ser adicionados em arquivos SQL isolados, sem alterar a API. N+1 e pooling ficaram para mudanças separadas. Não priorizei `pg_trgm` porque a busca de produtos teve menor custo isolado que os gargalos de pedidos e relatórios; materialização e aumento de recursos ainda exigem justificar custos de atualização e operação.
 
 ## 6. Experimento e resultado
 
@@ -44,13 +44,15 @@ Escolhi começar pelo índice em `itens_pedido(pedido_id)`: o plano mostrava uma
 | Sem índice | 2,71 / 2,77 / 2,55 | 2,71 | 23.586,6 / 23.724,1 / 25.501,5 | 23.724,1 |
 | Com índice | 4,83 / 4,48 / 4,91 | 4,83 | 12.002,6 / 12.888,6 / 11.382,1 | 12.002,6 |
 
-A versão sem índice (`9b6b69c`) e a versão com índice (`59124a7`) diferiram funcionalmente pelo arquivo SQL do índice; código da API, carga, dados sintéticos determinísticos e limites do Compose foram mantidos. Os dois bancos foram criados em volumes novos. Após três execuções preliminares por variante, a série principal alternou sem índice/com índice por três pares. Três rodadas exploratórias com índice em volume mais antigo foram preservadas, mas excluídas por diferença na idade do banco. Todas as rodadas usaram 20 VUs, 60 s nominais, 15 s de aquecimento e seed 42. Só um stack do desafio ficou ativo por vez, containers externos foram pausados, o contrato de 42 casos passou e houve zero erros. As pastas primárias estão em [sem índice](../resultados/20261112-185839-02-control-alt-off-1/), [rodadas 2](../resultados/20261112-190406-02-control-alt-off-2/) e [3](../resultados/20261112-191019-02-control-alt-off-3/); e [com índice](../resultados/20261112-190132-02-control-alt-on-1/), [rodadas 2](../resultados/20261112-190751-02-control-alt-on-2/) e [3](../resultados/20261112-191255-02-control-alt-on-3/).
+O contraste entre `9b6b69c` e `59124a7` isolou o arquivo SQL do índice: API, carga e dados sintéticos determinísticos foram mantidos. Após execuções preliminares, a série principal alternou as variantes por três pares, com volumes novos, containers externos pausados, 20 VUs, 60 s nominais, 15 s de aquecimento e seed 42. O contrato de 42 casos passou e houve zero erros. As seis pastas primárias e as limitações das séries exploratórias estão em [experimentos.md](../experimentos.md).
 
 Na mediana, o throughput aumentou 78,1% e o p95 caiu 49,4%. O índice ocupa 21 MB e aparece no plano posterior. Esses dados são mais fortes que as capturas iniciais, feitas em datas diferentes, que permanecem exploratórias. A comparação controlada sustenta uma contribuição do índice para este perfil sintético; não estabelece redução de recursos ou benefício em escrita. CPU e memória não foram usadas porque o agregador permanece sob auditoria. Os detalhes e resultados por rota estão em [experimentos.md](../experimentos.md).
 
+Um segundo experimento testou `pedidos(cliente_id, criado_em DESC, id DESC)`, com três rodadas preliminares por variante e depois três pares alternados em volumes novos. Parâmetros e contrato foram iguais ao primeiro teste. O throughput mediano passou de 4,86 para 5,77 req/s; o p95 geral, de 11.374,7 para 10.165,1 ms; e o p95 da rota `pedidos-do-cliente`, de 12.305,5 para 8.551,4 ms. As seis execuções não tiveram erros. O plano mudou de `Parallel Seq Scan` com sort para `Index Scan`; o índice ocupa 19 MB. Os tempos do `EXPLAIN ANALYZE` não foram comparados, pois os estados de cache diferiam. Dados brutos e os dois planos estão em [experimentos.md](../experimentos.md) e [experimento-02-plano.txt](../diagnostico/experimento-02-plano.txt).
+
 ## 7. Limites e testes futuros
 
-As capturas iniciais antes/depois foram feitas em datas diferentes, mas a série alternada posterior reduziu esse risco e sustenta o efeito sob as condições testadas. Ainda assim, há apenas três rodadas por variante em uma máquina e um perfil de leitura sintético; isso não estabelece capacidade universal, impacto em escrita ou custo total. O teste separado de 2 versus 20 VUs mostrou throughput quase estável (3,39 para 3,61 req/s) e latência maior sob 20 VUs, mas foi feito em blocos e não separa execução de espera. A amostragem por rota é pequena para estimar p95, especialmente nos relatórios.
+As comparações alternadas reduzem o risco de deriva temporal, mas têm apenas três rodadas por variante em uma máquina e um perfil sintético; não estabelecem capacidade universal, impacto em escrita ou custo total. O teste separado de 2 versus 20 VUs mostrou throughput quase estável (3,39 para 3,61 req/s) e latência maior sob 20 VUs, mas foi feito em blocos e não separa execução de espera. A amostragem por rota é pequena para estimar p95, especialmente nos relatórios.
 
 O agregador de recursos aparenta comparar picos de CPU como texto e, em uma execução, sumarizar 36 amostras enquanto o CSV contém 37. Não alterei `scripts/`, protegido pelo desafio; por isso, não afirmo economia de CPU/memória. Os próximos testes — incluindo N+1, pool, outros índices e relatórios — estão em [proximos-testes.md](../proximos-testes.md).
 

@@ -1,15 +1,8 @@
 # Próximos testes
 
-As ideias abaixo foram pesquisadas, mas ainda não foram testadas nesta aplicação. Benefícios são hipóteses; não há resultados de desempenho a reportar para estes próximos experimentos. A comparação controlada do índice já foi concluída e está registrada em [experimentos.md](experimentos.md). Cada mudança futura deve ser isolada, registrada antes da medição, aprovada pelo contrato e medida três vezes com os mesmos parâmetros. Não alterar `carga/`, `scripts/` nem os arquivos protegidos do contrato e da geração de dados.
+As ideias abaixo foram pesquisadas, mas ainda não foram testadas nesta aplicação. Benefícios são hipóteses; não há resultados de desempenho a reportar para estes próximos experimentos. Os dois experimentos de índices já foram concluídos e estão registrados em [experimentos.md](experimentos.md). Cada mudança futura deve ser isolada, registrada antes da medição, aprovada pelo contrato e medida três vezes com os mesmos parâmetros. Não alterar `carga/`, `scripts/` nem os arquivos protegidos do contrato e da geração de dados.
 
 ## Otimizações ainda não testadas
-
-### Índice de pedidos por cliente e ordenação
-
-- **Fonte/evidência:** [planos baseline](diagnostico/planos-consultas.txt) e [documentação PostgreSQL sobre índices multicoluna](https://www.postgresql.org/docs/16/indexes-multicolumn.html).
-- **Hipótese:** um B-tree em `pedidos(cliente_id, criado_em DESC, id DESC)` pode reduzir a varredura e o sort ao listar pedidos do cliente.
-- **Como testar:** criar um arquivo SQL novo; verificar o plano e o tamanho do índice; rodar o contrato e três medições, avaliando todas as rotas porque o índice também pode afetar relatórios.
-- **Necessário/limites:** preservar a ordem e os campos da resposta; separar este índice dos testes de reescrita da API.
 
 ### Consulta de pedidos sem N+1 e pool de conexões
 

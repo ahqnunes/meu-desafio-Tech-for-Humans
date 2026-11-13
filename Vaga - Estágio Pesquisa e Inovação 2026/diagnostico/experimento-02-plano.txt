@@ -1,0 +1,40 @@
+Experimento 02 — GET /clientes/7/pedidos
+Consulta representativa executada após as medições, sem carga concorrente.
+SET statement_timeout='120s';
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM pedidos WHERE cliente_id = 7 ORDER BY criado_em DESC, id DESC;
+Os tempos absolutos não são comparáveis entre capturas por diferenças de cache.
+
+===== Antes: sem idx_pedidos_cliente_criado_em_id =====
+Gather Merge  (cost=24438.17..24438.64 rows=4 width=299) (actual time=41.935..50.000 rows=5 loops=1)
+  Workers Planned: 2
+  Workers Launched: 2
+  Buffers: shared hit=11123 read=9837
+  ->  Sort  (cost=23438.15..23438.16 rows=2 width=299) (actual time=39.221..39.222 rows=2 loops=3)
+        Sort Key: criado_em DESC, id DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=11123 read=9837
+        Worker 0:  Sort Method: quicksort  Memory: 25kB
+        Worker 1:  Sort Method: quicksort  Memory: 25kB
+        ->  Parallel Seq Scan on pedidos  (cost=0.00..23438.14 rows=2 width=299) (actual time=18.502..39.143 rows=2 loops=3)
+              Filter: (cliente_id = 7)
+              Rows Removed by Filter: 166665
+              Buffers: shared hit=10997 read=9837
+Planning:
+  Buffers: shared hit=84
+Planning Time: 0.472 ms
+Execution Time: 50.089 ms
+
+===== Depois: com idx_pedidos_cliente_criado_em_id =====
+Index Scan using idx_pedidos_cliente_criado_em_id on pedidos  (cost=0.42..24.51 rows=5 width=299) (actual time=0.063..0.088 rows=5 loops=1)
+  Index Cond: (cliente_id = 7)
+  Buffers: shared hit=6 read=2
+Planning:
+  Buffers: shared hit=108
+Planning Time: 0.476 ms
+Execution Time: 0.123 ms
+
+O plano mudou de varredura sequencial paralela mais sort para Index Scan que
+atende o filtro e a ordenação pelo índice. Esta evidência explica a mudança do
+plano, mas não substitui as medições de carga. Tamanho registrado:
+idx_pedidos_cliente_criado_em_id = 19 MB (pg_relation_size).
