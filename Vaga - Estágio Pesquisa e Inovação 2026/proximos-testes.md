@@ -1,15 +1,27 @@
 # Próximos testes
 
-As ideias abaixo foram pesquisadas, mas ainda não foram testadas nesta aplicação. Benefícios são hipóteses; não há resultados de desempenho a reportar para estes próximos experimentos. Os dois experimentos de índices já foram concluídos e estão registrados em [experimentos.md](experimentos.md). Cada mudança futura deve ser isolada, registrada antes da medição, aprovada pelo contrato e medida três vezes com os mesmos parâmetros. Não alterar `carga/`, `scripts/` nem os arquivos protegidos do contrato e da geração de dados.
+As ideias abaixo ainda não foram testadas nesta aplicação; benefícios são hipóteses. Os experimentos de índices, a remoção do N+1 e o pool já foram medidos e estão registrados em [experimentos.md](experimentos.md) e [diagnostico/relatorio.md](diagnostico/relatorio.md). Cada mudança futura deve ser isolada, registrada antes da medição, aprovada pelo contrato e medida três vezes com os mesmos parâmetros; balancear ou sortear a ordem dos braços por par. Não alterar `carga/`, `scripts/` nem os arquivos protegidos do contrato e da geração de dados.
+
+A auditoria de recursos foi feita por recálculo direto dos CSVs usando [diagnostico/recalcular-recursos.py](diagnostico/recalcular-recursos.py); médias, picos e limitações estão em [diagnostico/relatorio.md](diagnostico/relatorio.md). A coleta ainda tem divergências de contagem, portanto futuras medições devem manter os CSVs e registrar as métricas como observacionais, não como custo por requisição.
+
+## Experimentos concluídos nesta etapa
+
+### Remoção do N+1 em pedidos por cliente
+
+- **Implementação:** uma consulta com `LEFT JOIN` e montagem da mesma resposta em memória; sem pooling.
+- **Repetição commitada:** três pares balanceados em worktrees limpos; throughput mediano 4,14→3,20 req/s (−22,7%), p95 geral +44,2% e p95 de `pedidos-do-cliente` +78,2%.
+- **Conclusão:** inconclusiva. As faixas se sobrepõem, os pares divergem e houve um timeout em cada braço do primeiro par. A repetição substitui a série anterior como evidência principal; não se deve manter a conclusão anterior de ganho medido.
+- **Integridade:** contrato mantido nos 42 casos em todas as rodadas; resultados e recursos detalhados em [experimentos.md](experimentos.md) e [diagnostico/relatorio.md](diagnostico/relatorio.md).
+- **Próximo passo:** se a decisão de manter a alteração depender de benefício demonstrado, repetir com uma medição focada na rota-alvo, mesma base e warm-up documentado; não combinar com teste de pool ou ajuste de configuração.
+
+### Pool de conexões, testado separadamente
+
+- **Implementação testada:** pool PostgreSQL limitado a 10 conexões sobre a variante sem N+1; encerramento gracioso e registro de erros de conexões ociosas.
+- **Repetição commitada:** throughput mediano +29,8% e p95 geral −51,6%; em contrapartida, latência mediana geral +143,1% e p95 da rota-alvo +53,3%. Os três pares favoreceram throughput e p95 geral, mas pioraram o p95 da rota.
+- **Decisão/limite:** o pool permanece no código como decisão provisória de trade-off, não por economia comprovada de recursos. A repetição mostrou média de CPU maior no banco e memória média maior no banco, embora ambos os valores fossem menores na API. Se latência de rota ou custo por requisição for prioritário, medir esses objetivos explicitamente e comparar limites de pool em experimento separado e controlado.
+- **Integridade:** contrato mantido nos 42 casos e 0% de erros; CSVs e medições individuais estão registrados nas referências acima.
 
 ## Otimizações ainda não testadas
-
-### Consulta de pedidos sem N+1 e pool de conexões
-
-- **Fonte/evidência:** [código da rota](api/src/rotas.js), [acesso ao banco](api/src/db.js), estudo de [Yang et al.](https://par.nsf.gov/servlets/purl/10067547) sobre bugs de performance e [documentação de pooling do node-postgres](https://node-postgres.com/features/pooling).
-- **Hipótese:** consolidar a busca de pedidos e itens pode reduzir round trips; reutilizar conexões por pool pode reduzir o custo de abrir/fechar um cliente por consulta.
-- **Como testar:** primeiro eliminar o N+1 em uma mudança isolada; em outro commit, introduzir um pool limitado. Em cada caso, conferir precisamente a ordem e o conteúdo das respostas e medir três vezes.
-- **Necessário/limites:** contrato preservado, limite explícito do pool e teste de carga com o banco; não combinar as duas alterações num experimento.
 
 ### Índice funcional para busca por e-mail
 
@@ -39,9 +51,8 @@ As ideias abaixo foram pesquisadas, mas ainda não foram testadas nesta aplicaç
 - **Como testar:** testar separadamente a reescrita do filtro/índice e, em outro experimento, uma view materializada; comparar resposta e frescor dos dados além de latência e custo de armazenamento/refresh.
 - **Necessário/limites:** esclarecer a exigência de atualidade antes de escolher materialização; medir todas as rotas. A carga atual cobre janela móvel de sete dias e top produtos com limite 10, não toda a faixa permitida pela API.
 
-### Corrigir e validar a leitura de recursos
+## Experimentos de configuração (separados das mudanças de consulta)
 
-- **Fonte/evidência:** inspeção somente de leitura do agregador em [scripts/medir.sh](scripts/medir.sh) e auditoria em [diagnostico/relatorio.md](diagnostico/relatorio.md); contexto técnico: [documentação PostgreSQL 16 de recursos](https://www.postgresql.org/docs/16/runtime-config-resource.html) e [limites de recursos do Docker](https://docs.docker.com/engine/containers/resource_constraints/).
-- **Hipótese:** ajustes de paralelismo, `work_mem` ou limites podem alterar throughput e custo, mas não se presume melhora.
-- **Como testar:** o código atual sugere comparação textual no cálculo do pico e possível corrida ao terminar a coleta. Como `scripts/` é régua protegida pelo desafio, não editar o arquivo. Primeiro obter autorização ou um procedimento de validação permitido; então comparar agregados com amostras brutas e testar o encerramento do coletor. Só depois fazer experimentos separados de parâmetros e limites, três medições por variante.
-- **Necessário/limites:** `work_mem` pode multiplicar por operação e sessão; limites de CPU podem causar throttling e memória pode causar OOM. Não atribuir resultados a CPU/memória enquanto agregados não forem confiáveis e não alterar os arquivos protegidos.
+Depois das mudanças de consulta, pode-se avaliar paralelismo, `work_mem` ou limites, cada um em experimento próprio. Consultar a [documentação PostgreSQL 16 de recursos](https://www.postgresql.org/docs/16/runtime-config-resource.html) e os [limites de recursos do Docker](https://docs.docker.com/engine/containers/resource_constraints/); definir uma hipótese mensurável, manter o contrato e repetir três vezes por variante.
+
+`work_mem` pode multiplicar o consumo por operação e sessão; limites de CPU podem causar throttling e memória pode causar OOM. Não combinar knobs entre si ou com mudanças de consulta, não alterar `scripts/` e registrar CPU/memória recalculadas dos CSVs junto do throughput e latência.
