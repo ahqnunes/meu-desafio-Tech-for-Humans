@@ -1,0 +1,17 @@
+Medição: n1-rerun-03-a
+Carga: 20 usuários virtuais por 60s
+
+Requisições:        280
+Requisições/s:      4.33
+Tempo de resposta:  mediana 1226.8 ms | p95 15611.0 ms | p99 35977.2 ms
+Erros:              0.00%
+
+Por rota:
+rota                  req       mediana       p95           p99           erros   
+cliente               73        293.5 ms      802.0 ms      4204.2 ms     0.0%    
+cliente-por-email     44        1091.1 ms     2196.3 ms     3851.3 ms     0.0%    
+pedidos-do-cliente    53        4624.8 ms     11947.1 ms    12715.6 ms    0.0%    
+pedidos-por-status    36        8676.6 ms     16977.0 ms    26508.1 ms    0.0%    
+busca-produtos        48        500.8 ms      1975.1 ms     4263.2 ms     0.0%    
+vendas-por-dia        23        14222.0 ms    36748.9 ms    39728.4 ms    0.0%    
+top-produtos          3         13537.6 ms    19633.2 ms    20175.0 ms    0.0%    

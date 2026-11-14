@@ -1,0 +1,17 @@
+Medição: pool-rerun-01-a
+Carga: 20 usuários virtuais por 60s
+
+Requisições:        231
+Requisições/s:      3.32
+Tempo de resposta:  mediana 823.9 ms | p95 27642.0 ms | p99 37132.7 ms
+Erros:              0.00%
+
+Por rota:
+rota                  req       mediana       p95           p99           erros   
+cliente               59        337.6 ms      1229.3 ms     9601.9 ms     0.0%    
+cliente-por-email     36        1605.7 ms     2933.9 ms     13897.7 ms    0.0%    
+pedidos-do-cliente    41        800.5 ms      3808.5 ms     12565.2 ms    0.0%    
+pedidos-por-status    31        24493.6 ms    29910.3 ms    33522.7 ms    0.0%    
+busca-produtos        45        609.0 ms      1299.1 ms     2642.7 ms     0.0%    
+vendas-por-dia        16        26835.9 ms    43526.0 ms    55072.3 ms    0.0%    
+top-produtos          3         22268.3 ms    30161.7 ms    30863.4 ms    0.0%    
