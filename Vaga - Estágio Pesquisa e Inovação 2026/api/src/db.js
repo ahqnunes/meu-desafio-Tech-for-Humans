@@ -1,4 +1,4 @@
-const { Client } = require('pg');
+const { Pool } = require('pg');
 
 const config = {
   host: process.env.DB_HOST || 'localhost',
@@ -7,15 +7,19 @@ const config = {
   database: process.env.DB_NAME || 'loja',
 };
 
+const pool = new Pool({ ...config, max: 10 });
+
+pool.on('error', (erro) => {
+  console.error('Erro em conexão ociosa do pool PostgreSQL:', erro);
+});
+
 async function consultar(sql, parametros = []) {
-  const cliente = new Client(config);
-  await cliente.connect();
-  try {
-    const resultado = await cliente.query(sql, parametros);
-    return resultado.rows;
-  } finally {
-    await cliente.end();
-  }
+  const resultado = await pool.query(sql, parametros);
+  return resultado.rows;
 }
 
-module.exports = { consultar };
+async function encerrar() {
+  await pool.end();
+}
+
+module.exports = { consultar, encerrar };
