@@ -1,0 +1,5 @@
+container                            amostras  cpu_media    cpu_max    mem_media      mem_max
+challenge-final-cost-20261115-banco-1       37      91.7%     100.0%    399.5 MiB    473.5 MiB
+challenge-final-cost-20261115-api-1        37       9.5%       9.4%     29.0 MiB     52.7 MiB
+
+cpu_percentual: 100% = 1 CPU inteira.

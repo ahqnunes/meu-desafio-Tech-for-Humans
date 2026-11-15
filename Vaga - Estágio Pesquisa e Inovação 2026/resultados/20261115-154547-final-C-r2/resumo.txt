@@ -1,0 +1,17 @@
+Medição: final-C-r2
+Carga: 20 usuários virtuais por 60s
+
+Requisições:        383
+Requisições/s:      5.91
+Tempo de resposta:  mediana 1587.1 ms | p95 12646.3 ms | p99 21226.5 ms
+Erros:              0.00%
+
+Por rota:
+rota                  req       mediana       p95           p99           erros   
+cliente               97        1173.8 ms     3360.2 ms     10717.0 ms    0.0%    
+cliente-por-email     62        1528.6 ms     3818.8 ms     7649.3 ms     0.0%    
+pedidos-do-cliente    76        1491.8 ms     4461.1 ms     5042.7 ms     0.0%    
+pedidos-por-status    52        5243.2 ms     15808.1 ms    20670.1 ms    0.0%    
+busca-produtos        63        1496.9 ms     4973.0 ms     10641.3 ms    0.0%    
+vendas-por-dia        28        7638.5 ms     19616.5 ms    22105.2 ms    0.0%    
+top-produtos          5         22250.3 ms    24912.8 ms    25349.1 ms    0.0%    
