@@ -1,0 +1,17 @@
+Medição: pool-on-v2-pool-01-b
+Carga: 20 usuários virtuais por 60s
+
+Requisições:        510
+Requisições/s:      7.81
+Tempo de resposta:  mediana 1431.9 ms | p95 7451.2 ms | p99 11388.4 ms
+Erros:              0.00%
+
+Por rota:
+rota                  req       mediana       p95           p99           erros   
+cliente               137       1009.3 ms     2020.4 ms     2322.7 ms     0.0%    
+cliente-por-email     74        1971.0 ms     2969.5 ms     3322.8 ms     0.0%    
+pedidos-do-cliente    109       1075.3 ms     2143.3 ms     2453.9 ms     0.0%    
+pedidos-por-status    68        6645.0 ms     9803.5 ms     13471.6 ms    0.0%    
+busca-produtos        80        1276.4 ms     2313.2 ms     2706.8 ms     0.0%    
+vendas-por-dia        36        4419.2 ms     6834.1 ms     7050.6 ms     0.0%    
+top-produtos          6         13694.8 ms    16783.0 ms    17040.6 ms    0.0%    

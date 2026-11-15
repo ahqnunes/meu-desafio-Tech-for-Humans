@@ -1,0 +1,17 @@
+Medição: n1-no-pool-v2-pool-02-b
+Carga: 20 usuários virtuais por 60s
+
+Requisições:        472
+Requisições/s:      6.94
+Tempo de resposta:  mediana 587.9 ms | p95 11807.0 ms | p99 20860.8 ms
+Erros:              0.00%
+
+Por rota:
+rota                  req       mediana       p95           p99           erros   
+cliente               129       204.2 ms      780.5 ms      1151.1 ms     0.0%    
+cliente-por-email     67        1478.5 ms     2562.9 ms     2883.1 ms     0.0%    
+pedidos-do-cliente    96        286.2 ms      598.2 ms      859.0 ms      0.0%    
+pedidos-por-status    65        9219.0 ms     17046.5 ms    19831.2 ms    0.0%    
+busca-produtos        78        644.6 ms      1180.0 ms     1586.7 ms     0.0%    
+vendas-por-dia        31        7397.7 ms     9749.1 ms     10776.7 ms    0.0%    
+top-produtos          6         34768.0 ms    46937.8 ms    47477.2 ms    0.0%    

@@ -1,0 +1,17 @@
+Medição: n1-on-v2-par-01-b
+Carga: 20 usuários virtuais por 60s
+
+Requisições:        437
+Requisições/s:      6.28
+Tempo de resposta:  mediana 676.0 ms | p95 11682.4 ms | p99 24453.9 ms
+Erros:              0.00%
+
+Por rota:
+rota                  req       mediana       p95           p99           erros   
+cliente               116       302.5 ms      704.5 ms      885.5 ms      0.0%    
+cliente-por-email     66        1570.4 ms     2488.9 ms     2904.5 ms     0.0%    
+pedidos-do-cliente    87        314.0 ms      766.3 ms      1072.6 ms     0.0%    
+pedidos-por-status    61        8708.6 ms     18050.7 ms    34202.9 ms    0.0%    
+busca-produtos        71        776.8 ms      1453.3 ms     1674.9 ms     0.0%    
+vendas-por-dia        30        8496.2 ms     11506.9 ms    11919.6 ms    0.0%    
+top-produtos          6         29074.0 ms    49431.0 ms    51150.5 ms    0.0%    

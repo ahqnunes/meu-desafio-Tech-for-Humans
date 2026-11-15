@@ -1,0 +1,17 @@
+Medição: n1-off-v2-par-03-a
+Carga: 20 usuários virtuais por 60s
+
+Requisições:        366
+Requisições/s:      5.58
+Tempo de resposta:  mediana 1499.9 ms | p95 10303.9 ms | p99 15641.2 ms
+Erros:              0.00%
+
+Por rota:
+rota                  req       mediana       p95           p99           erros   
+cliente               97        279.9 ms      501.7 ms      695.9 ms      0.0%    
+cliente-por-email     57        1609.3 ms     2680.9 ms     2966.6 ms     0.0%    
+pedidos-do-cliente    71        5643.2 ms     8941.9 ms     10493.9 ms    0.0%    
+pedidos-por-status    47        8118.2 ms     12821.4 ms    16640.2 ms    0.0%    
+busca-produtos        63        725.1 ms      1200.3 ms     1334.5 ms     0.0%    
+vendas-por-dia        27        6495.3 ms     9737.8 ms     10366.5 ms    0.0%    
+top-produtos          4         19509.6 ms    42689.8 ms    45821.7 ms    0.0%    
