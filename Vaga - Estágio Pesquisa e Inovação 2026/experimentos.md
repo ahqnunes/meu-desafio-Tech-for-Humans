@@ -35,6 +35,33 @@ Uma linha por mudança aplicada. Os resultados de carga vêm das pastas geradas 
 
 O diagnóstico complementar de 2 versus 20 VUs não é uma mudança aplicada e, portanto, não aparece como uma otimização adicional. Seus dados e limites estão registrados na seção de concorrência do [relatório](diagnostico/relatorio.md).
 
+## Eficiência estimada de CPU por resposta bem-sucedida
+
+Uma análise posterior combinou a CPU média de `recursos.csv` com a taxa de respostas bem-sucedidas do k6. A mediana pareada da CPU estimada por resposta caiu em cada comparação incremental; fórmula, dados e limitações estão no [relatório](diagnostico/relatorio.md), e a saída reproduzível está em [cpu-por-requisicao-pares.csv](diagnostico/cpu-por-requisicao-pares.csv), gerada por [recalcular-cpu-por-requisicao.py](diagnostico/recalcular-cpu-por-requisicao.py).
+
+| Mudança incremental | CPU estimada (CPU-s/resposta válida, mediana por variante) | Variação pareada mediana (faixa) | Memória média total (MiB, mediana por variante) |
+|---|---:|---:|---:|
+| Índice `itens_pedido(pedido_id)` | 0,384→0,223 | −41,9% (−44,6% a −34,5%) | 221,3→259,7 (+17,4%) |
+| Índice de pedidos por cliente | 0,221→0,187 | −14,2% (−19,0% a −9,1%) | 266,3→262,8 (−1,3%) |
+| Remoção do N+1 | 0,200→0,160 | −21,4% (−27,4% a −13,0%) | 429,3→414,7 (−3,4%) |
+| Pool de conexões | 0,160→0,135 | −21,7% (−24,8% a −6,7%) | 409,5→414,1 (+1,1%) |
+
+Esses resultados são estimativas de eficiência, não custo monetário. A janela dos CSVs excede a duração medida pelo k6; além disso, cada comparação incremental tem seu próprio baseline, então as variações não devem ser multiplicadas para inferir o ganho do estado final combinado. A sensibilidade que exclui a primeira amostra manteve as medianas praticamente iguais. CPU por resposta, memória absoluta e latência/throughput devem ser avaliados em conjunto.
+
+## Comparação acumulada dos três estados
+
+Para validar o efeito conjunto, medi o original (A, `9b6b69c`), o estado após o experimento 02 (B, `64e4fe4`) e o estado final com N+1 removido e pool (C, `518872a`) em três blocos balanceados A→B→C, B→C→A e C→A→B. O mesmo container/banco e volume foram mantidos; entre estados, alterei apenas o código da API e a presença dos índices. As nove medições registraram commit correto e contrato mantido nos 42 casos.
+
+| Estado | Req/s (mediana; faixa) | p95 geral (mediana) | p95 da rota (mediana) | CPU estimada (CPU-s/resposta válida) | Memória média total (MiB) |
+|---|---:|---:|---:|---:|---:|
+| A — original | 2,52 (2,51–2,66) | 26,50 s | 28,52 s | 0,369 | 417,9 |
+| B — dois índices | 3,88 (3,73–5,23) | 18,36 s | 10,30 s | 0,189 | 429,4 |
+| C — final combinado | 5,91 (4,59–6,29) | 12,65 s | 4,34 s | 0,128 | 431,2 |
+
+Na comparação pareada A→C, o throughput aumentou 135,8% (82,4–136,6%), o p95 geral caiu 56,1% (42,7–59,4%), o p95 da rota caiu 85,8% (84,8–86,1%) e a CPU estimada por resposta caiu 65,1% (64,4–67,8%); a memória total aumentou 2,4% na mediana pareada (1,0–4,9%). B3 teve um timeout (0,35% de erro); não foi descartado, e o contrato passou. A diferença entre o CSV de recursos e a duração k6 teve mediana de 6,04 s (4,38–7,10), portanto CPU por resposta continua sendo uma estimativa, não uma conta monetária. B→C combina remoção de N+1 e pool e não isola seus efeitos.
+
+Os CSVs pareados de CPU estão em [cpu-por-requisicao-comparacao-acumulada.csv](diagnostico/cpu-por-requisicao-comparacao-acumulada.csv); o método e os limites completos estão no [relatório](diagnostico/relatorio.md). Dados brutos: A [1](resultados/20261115-153545-final-A-r1/), [2](resultados/20261115-154809-final-A-r2/), [3](resultados/20261115-155354-final-A-r3/); B [1](resultados/20261115-153826-final-B-r1/), [2](resultados/20261115-154327-final-B-r2/), [3](resultados/20261115-155624-final-B-r3/); C [1](resultados/20261115-154050-final-C-r1/), [2](resultados/20261115-154547-final-C-r2/), [3](resultados/20261115-155125-final-C-r3/).
+
 ## Evidência do terceiro experimento — remoção do N+1
 
 A variante A é o código do commit `888e703`; a B altera somente `api/src/rotas.js`, no commit `786a18d`. A rota consolidou a busca de cliente, pedidos, itens e produtos em um `LEFT JOIN`, reconstruindo a resposta, totais e ordenação em memória. Os dois índices estavam presentes em ambos os braços; não houve pool.

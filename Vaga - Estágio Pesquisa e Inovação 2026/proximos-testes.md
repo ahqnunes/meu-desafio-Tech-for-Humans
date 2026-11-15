@@ -2,7 +2,7 @@
 
 As ideias abaixo ainda não foram testadas nesta aplicação; benefícios são hipóteses. Os experimentos de índices, a remoção do N+1 e o pool já foram medidos e estão registrados em [experimentos.md](experimentos.md) e [diagnostico/relatorio.md](diagnostico/relatorio.md). Cada mudança futura deve ser isolada, registrada antes da medição, aprovada pelo contrato e medida três vezes com os mesmos parâmetros; balancear ou sortear a ordem dos braços por par. Não alterar `carga/`, `scripts/` nem os arquivos protegidos do contrato e da geração de dados.
 
-A auditoria de recursos foi feita por recálculo direto dos CSVs usando [diagnostico/recalcular-recursos.py](diagnostico/recalcular-recursos.py); médias, picos e limitações estão em [diagnostico/relatorio.md](diagnostico/relatorio.md). A coleta ainda tem divergências de contagem, portanto futuras medições devem manter os CSVs e registrar as métricas como observacionais, não como custo por requisição.
+A auditoria de recursos e a estimativa de CPU por resposta foram feitas diretamente dos CSVs usando [diagnostico/recalcular-recursos.py](diagnostico/recalcular-recursos.py) e [diagnostico/recalcular-cpu-por-requisicao.py](diagnostico/recalcular-cpu-por-requisicao.py). As limitações da janela e a interpretação como proxy, não custo monetário, estão em [diagnostico/relatorio.md](diagnostico/relatorio.md).
 
 ## Experimentos concluídos nesta etapa
 
@@ -12,14 +12,21 @@ A auditoria de recursos foi feita por recálculo direto dos CSVs usando [diagnos
 - **Repetição commitada:** três pares balanceados em worktrees limpos; throughput mediano 4,14→3,20 req/s (−22,7%), p95 geral +44,2% e p95 de `pedidos-do-cliente` +78,2%.
 - **Conclusão:** inconclusiva. As faixas se sobrepõem, os pares divergem e houve um timeout em cada braço do primeiro par. A repetição substitui a série anterior como evidência principal; não se deve manter a conclusão anterior de ganho medido.
 - **Integridade:** contrato mantido nos 42 casos em todas as rodadas; resultados e recursos detalhados em [experimentos.md](experimentos.md) e [diagnostico/relatorio.md](diagnostico/relatorio.md).
-- **Próximo passo:** se a decisão de manter a alteração depender de benefício demonstrado, repetir com uma medição focada na rota-alvo, mesma base e warm-up documentado; não combinar com teste de pool ou ajuste de configuração.
+- **Eficiência estimada:** CPU por resposta bem-sucedida caiu 21,4% na mediana das variações pareadas, mas req/s e latências pioraram nesta repetição.
+- **Próximo passo:** se a decisão de manter a alteração depender de benefício demonstrado, repetir com medição focada na rota-alvo, mesma base e warm-up documentado; não combinar com ajuste de configuração.
 
 ### Pool de conexões, testado separadamente
 
 - **Implementação testada:** pool PostgreSQL limitado a 10 conexões sobre a variante sem N+1; encerramento gracioso e registro de erros de conexões ociosas.
 - **Repetição commitada:** throughput mediano +29,8% e p95 geral −51,6%; em contrapartida, latência mediana geral +143,1% e p95 da rota-alvo +53,3%. Os três pares favoreceram throughput e p95 geral, mas pioraram o p95 da rota.
-- **Decisão/limite:** o pool permanece no código como decisão provisória de trade-off, não por economia comprovada de recursos. A repetição mostrou média de CPU maior no banco e memória média maior no banco, embora ambos os valores fossem menores na API. Se latência de rota ou custo por requisição for prioritário, medir esses objetivos explicitamente e comparar limites de pool em experimento separado e controlado.
+- **Decisão/limite:** o pool permanece como escolha provisória de throughput agregado, não de latência da rota ou redução de memória total: a memória média caiu na API e subiu no banco. CPU por resposta bem-sucedida caiu 21,7% na mediana pareada, mas a estimativa não prova economia monetária. Antes de finalizar a decisão, repetir com foco em `pedidos-do-cliente` e avaliar se outro limite de pool reduz o p95 sem perder o ganho agregado.
 - **Integridade:** contrato mantido nos 42 casos e 0% de erros; CSVs e medições individuais estão registrados nas referências acima.
+
+### Comparação acumulada de custo e desempenho — concluída
+
+Em três blocos balanceados (ABC, BCA, CAB), com a mesma base, o estado final combinado comparado ao original aumentou throughput mediano de 2,52 para 5,91 req/s (+135,8% pareado), reduziu o p95 geral de 26,50 para 12,65 s (−56,1%) e CPU estimada de 0,369 para 0,128 CPU-s por resposta válida (−65,1%). O p95 da rota caiu 85,8%; memória total aumentou 2,4% pareada. As nove medições passaram no contrato; houve um timeout (0,35%) no braço B3. A CPU por resposta continua sendo proxy por causa da janela maior que a carga, não uma economia monetária. A série B→C combina remoção de N+1 e pool e não isola seus efeitos. Dados e detalhes estão em [experimentos.md](experimentos.md) e [diagnostico/relatorio.md](diagnostico/relatorio.md).
+
+**Próxima decisão:** manter o estado final como opção mais eficiente neste perfil; se for importante decidir sobre o pool isoladamente, medir o p95 de `pedidos-do-cliente` com N+1 fixo e variantes de pool, sem combinar outras mudanças.
 
 ## Otimizações ainda não testadas
 

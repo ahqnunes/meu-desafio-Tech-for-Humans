@@ -280,10 +280,37 @@ Na repetição do N+1, as médias de CPU e memória foram menores nos dois servi
 
 Incluí também a linha de base de 07/11, antes não coberta pelas conferências anteriores. Nas três execuções, a mediana das médias foi 9,39% CPU e 30,92 MiB para a API, e 88,02% CPU e 375,47 MiB para o banco; as medianas dos picos foram 25,80% e 39,12 MiB para a API, e 108,47% e 455,70 MiB para o banco. As faixas entre execuções foram: médias de CPU 8,37–9,94% (API) e 84,59–91,66% (banco); médias de memória 30,14–31,58 MiB (API) e 372,36–390,29 MiB (banco); picos de CPU 24,38–29,22% e 104,37–112,09%; picos de memória 37,80–40,04 MiB e 443,50–460,30 MiB. Esses valores são recalculados do CSV e não devem ser comparados causalmente às séries posteriores, feitas em outras datas e condições. As inconsistências dos resumos e a janela de amostragem limitam a precisão; as medições servem como descrição observacional, não como custo por requisição ou prova de economia.
 
+## Estimativa de CPU por resposta bem-sucedida
+
+Para complementar as médias de recursos, calculei uma estimativa de CPU por resposta HTTP bem-sucedida para os três pares de cada experimento. O denominador é `http_reqs.rate × (1 − http_req_failed.rate)` do k6; para cada serviço, a estimativa é `(CPU média percentual / 100) ÷ respostas bem-sucedidas por segundo`. No total, somam-se as médias da API e do banco antes da divisão. A memória total é a soma das médias absolutas de API e banco por rodada, sem normalização por requisição. A coleta usa `docker stats` ([documentação oficial](https://docs.docker.com/reference/cli/docker/container/stats/)); as definições das métricas k6 estão na [referência oficial](https://grafana.com/docs/k6/latest/using-k6/metrics/reference/). Os cálculos reproduzíveis estão em [recalcular-cpu-por-requisicao.py](recalcular-cpu-por-requisicao.py) e [cpu-por-requisicao-pares.csv](cpu-por-requisicao-pares.csv).
+
+| Mudança incremental | CPU estimada (CPU-s/resposta válida, mediana por variante) | Variação pareada mediana (faixa) | Memória média total (MiB, mediana por variante) |
+|---|---:|---:|---:|
+| Índice `itens_pedido(pedido_id)` | 0,384→0,223 | −41,9% (−44,6% a −34,5%) | 221,3→259,7 (+17,4%) |
+| Índice de pedidos por cliente | 0,221→0,187 | −14,2% (−19,0% a −9,1%) | 266,3→262,8 (−1,3%) |
+| Remoção do N+1 | 0,200→0,160 | −21,4% (−27,4% a −13,0%) | 429,3→414,7 (−3,4%) |
+| Pool de conexões | 0,160→0,135 | −21,7% (−24,8% a −6,7%) | 409,5→414,1 (+1,1%) |
+
+Os valores de CPU são proxies de eficiência: `recursos.csv` não mede somente a janela do k6. A diferença entre a janela do CSV e `testRunDurationMs` teve mediana de 6,7 s (5,7–7,4) no experimento 01, 6,0 s (4,9–7,0) no 02, 6,9 s (5,4–8,3) no N+1 e 7,5 s (6,4–9,2) no pool. Excluir a primeira amostra quase não alterou as variações pareadas medianas (−41,9%, −14,2%, −21,6% e −21,7%), mas isso não corrige toda a diferença de janela. CPU por resposta não é preço em dinheiro; a memória permanece absoluta, e não há uma redução uniforme dela. A comparação acumulada abaixo testa o estado final sem multiplicar percentuais de séries incrementais distintas.
+
+## Comparação acumulada: original, índices e estado final
+
+Foram comparados três estados em três blocos balanceados, na ordem A→B→C, B→C→A e C→A→B. A: código original sem os dois índices (`9b6b69c`); B: os dois índices após o experimento 02 (`64e4fe4`); C: os índices, a remoção de N+1 e o pool (`518872a`). O banco e os dados permaneceram no mesmo container (`d6b19a05`, sem reinício); somente a API foi reconstruída e os índices criados/removidos entre estados. Os nove `contexto.txt` registram o commit correspondente e zero arquivos alterados; o contrato passou nos 42 casos em todas as rodadas.
+
+| Estado | Req/s (mediana; faixa) | p95 geral (mediana; faixa) | p95 `pedidos-do-cliente` (mediana; faixa) | CPU estimada (CPU-s/resposta válida; mediana; faixa) | Memória média total (MiB; mediana; faixa) | Erros k6 |
+|---|---:|---:|---:|---:|---:|---:|
+| A — original | 2,52 (2,51–2,66) | 26,50 s (25,09–28,79) | 28,52 s (27,49–31,33) | 0,369 (0,361–0,393) | 417,9 (413,8–427,0) | 0% |
+| B — dois índices | 3,88 (3,73–5,23) | 18,36 s (12,65–21,72) | 10,30 s (8,42–13,62) | 0,189 (0,187–0,191) | 429,4 (425,1–447,3) | 0–0,35% |
+| C — estado final combinado | 5,91 (4,59–6,29) | 12,65 s (10,19–15,19) | 4,34 s (3,83–4,46) | 0,128 (0,127–0,129) | 431,2 (427,7–434,1) | 0% |
+
+Na comparação pareada A→C, a mediana das variações foi +135,8% em throughput (faixa +82,4% a +136,6%), −56,1% no p95 geral (−59,4% a −42,7%), −85,8% no p95 da rota (−86,1% a −84,8%) e −65,1% em CPU estimada por resposta válida (−67,8% a −64,4%). A memória total aumentou 2,4% na mediana pareada (faixa +1,0% a +4,9%). A comparação confirma melhora conjunta de throughput, latência e eficiência de CPU no perfil testado, com pequeno aumento de memória; não prova economia monetária. B3 teve um timeout em `/pedidos?status=pago&pagina=704` (0,35% de erro); foi mantido, e seu denominador de CPU usa apenas respostas bem-sucedidas.
+
+O resultado B→C mede conjuntamente a remoção do N+1 e a adição do pool sobre os índices; não permite atribuir o ganho a uma dessas duas mudanças isoladamente nem elimina o trade-off observado na repetição separada do pool. O CSV pareado está em [cpu-por-requisicao-comparacao-acumulada.csv](cpu-por-requisicao-comparacao-acumulada.csv). Resultados brutos: A [1](../resultados/20261115-153545-final-A-r1/), [2](../resultados/20261115-154809-final-A-r2/), [3](../resultados/20261115-155354-final-A-r3/); B [1](../resultados/20261115-153826-final-B-r1/), [2](../resultados/20261115-154327-final-B-r2/), [3](../resultados/20261115-155624-final-B-r3/); C [1](../resultados/20261115-154050-final-C-r1/), [2](../resultados/20261115-154547-final-C-r2/), [3](../resultados/20261115-155125-final-C-r3/).
+
 ## Próximos experimentos sugeridos
 
 1. Se for necessária uma conclusão mais forte sobre concorrência, repetir os perfis de 2 e 20 VUs alternando a ordem, em ambiente estável e sem outras cargas relevantes; manter como diagnóstico, não como resultado oficial antes/depois.
-2. N+1 e pool já foram medidos separadamente. O pool permanece na implementação atual por ter elevado throughput em todos os pares e reduzido médias de memória; essa escolha prioriza throughput agregado, não a latência da rota. Antes de finalizar a decisão, repetir a comparação com foco em `pedidos-do-cliente` e avaliar se um limite de pool diferente reduz o p95 sem perder o ganho agregado.
+2. N+1 e pool já foram medidos separadamente e no estado combinado. A comparação acumulada favoreceu o estado final, mas não isola N+1 de pool. A repetição isolada do pool ainda indica trade-off: throughput e p95 geral melhoraram, mas o p95 da rota piorou; a memória total também não caiu. Se for necessário decidir sobre o pool isoladamente, medir o p95 de `pedidos-do-cliente` com limite de pool alternativo, mantendo o mesmo código e banco.
 3. Seguir com `lower(email)`, status/paginação, `pg_trgm` e alternativas para relatórios, cada qual isoladamente; priorizar as rotas que seguem com maior latência sob carga.
 4. Tratar paralelismo, JIT, `work_mem` e demais parâmetros como experimentos separados das mudanças de consulta. Se necessário, planejar `pg_stat_statements` como mudança diagnóstica própria.
 

@@ -2,13 +2,13 @@
 
 ## 1. Resumo
 
-Em duas séries de três pares, índices B-tree elevaram o throughput mediano sob 20 VUs: 2,71→4,83 req/s para `itens_pedido(pedido_id)` e 4,86→5,77 para `pedidos(cliente_id, criado_em DESC, id DESC)`. O contrato foi mantido e os planos usaram os índices. Como a ordem foi sempre sem→com índice, a deriva temporal não está controlada; os resultados são favoráveis, mas não provam causalidade nem se generalizam.
+Em duas séries de três pares, índices B-tree elevaram o throughput mediano sob 20 VUs: 2,71→4,83 req/s para `itens_pedido(pedido_id)` e 4,86→5,77 para `pedidos(cliente_id, criado_em DESC, id DESC)`. Uma normalização posterior estima menor CPU por resposta em cada etapa, mas não prova economia monetária ou o efeito do conjunto final. A ordem fixa sem→com índice também deixa deriva temporal confundida.
 
 ## 2. Contexto e diagnóstico
 
-A aplicação usa Node.js 20, Express e PostgreSQL 16 em containers. O conjunto sintético contém 100 mil clientes, 20 mil produtos, 500 mil pedidos e aproximadamente 1,5 milhão de itens. O perfil k6 dá maior peso a consultas de cliente, pedidos, e-mail e busca de produtos. A linha de base foi medida três vezes, com 20 VUs, 60 segundos nominais, 15 segundos de aquecimento e seed 42. A taxa mediana foi 2,62 req/s e o p95 geral 24,8 s; cada execução manteve o contrato e registrou zero erros.
+A API usa Node.js 20, Express e PostgreSQL 16; os dados sintéticos têm 100 mil clientes, 20 mil produtos, 500 mil pedidos e 1,5 milhão de itens. A linha de base (20 VUs, 60 s nominais, 15 s de aquecimento, seed 42) teve mediana de 2,62 req/s e p95 de 24,8 s; as três rodadas mantiveram o contrato e não tiveram erros.
 
-Os planos salvos em `diagnostico/planos-consultas.txt` mostraram varredura sequencial da tabela de itens ao buscar os itens de um pedido. A rota `/clientes/:id/pedidos`, em `api/src/rotas.js`, também consulta itens dentro de um loop de pedidos e produtos dentro de outro loop. `api/src/db.js` abre e fecha uma conexão por chamada. São mecanismos plausíveis de trabalho repetido, mas as capturas isoladas não provam quanto cada um contribui para a carga total.
+Os planos mostraram varreduras sequenciais em itens e pedidos; `/clientes/:id/pedidos` também consultava itens e produtos dentro de loops. São hipóteses de trabalho repetido, não medidas da contribuição de cada mecanismo para a carga total.
 
 **Hipótese do experimento:** um índice B-tree em `itens_pedido(pedido_id)` reduziria o trabalho para localizar itens de cada pedido. O diagnóstico completo, incluindo parâmetros e limitações dos planos, está em [relatorio.md](../diagnostico/relatorio.md).
 
@@ -31,11 +31,11 @@ Yang et al. estudaram bugs de desempenho em aplicações Rails e descrevem um ca
 | View materializada/cache | Espaço e CPU para refresh/invalidação | Pode baratear leituras repetidas de relatórios | Dado obsoleto e consistência | Médio–alto |
 | Ajustar configuração/limites | Mais CPU/RAM custa mais; limites menores arriscam throttling/OOM | Depende de plano, concorrência e carga; medir | Aumentar recurso pode apenas aumentar custo | Baixo–médio |
 
-As opções têm custos e mecanismos diferentes. Índices acrescentam espaço e manutenção de escrita [1]; consolidar consultas e usar pool exigem provar igualdade da resposta [5][6]; materialização envolve atualização e frescor [7]. Limites podem causar throttling/OOM e `work_mem` multiplica consumo por operação e sessão [8][9]. O plano observado favoreceu testar primeiro um índice localizado; as demais alternativas ficaram para experimentos próprios, sem serem descartadas universalmente.
+Índices acrescentam espaço e manutenção de escrita [1]; consultas consolidadas e pooling exigem preservar a resposta [5][6]; materialização envolve frescor [7]. Limites podem causar throttling/OOM, e `work_mem` pode multiplicar consumo por operação [8][9]. O primeiro teste priorizou a evidência local, sem descartar alternativas.
 
 ## 5. Solução escolhida e por quê
 
-Comecei pelos dois índices em mudanças SQL isoladas, sem alterar a API. Depois removi o N+1 da rota `/clientes/:id/pedidos` com uma consulta `JOIN`, mantendo a resposta; o pool foi testado em etapa separada. A repetição da remoção do N+1 não confirmou o ganho da série inicial e foi inconclusiva. O pool apresentou um trade-off entre throughput agregado e latência da rota-alvo. Não priorizei `pg_trgm` porque a busca de produtos teve menor custo isolado que os gargalos de pedidos e relatórios; materialização e aumento de recursos ainda exigem justificar custos de atualização e operação.
+Testei os dois índices em mudanças SQL isoladas, depois a remoção do N+1 e, separadamente, o pool. A repetição do N+1 foi inconclusiva; o pool trocou melhor throughput agregado por pior p95 da rota-alvo. `pg_trgm`, materialização e aumento de recursos ficaram para depois, pois seus custos ainda precisam ser justificados localmente.
 
 ## 6. Experimento e resultado
 
@@ -48,11 +48,13 @@ Cada valor HTTP é a mediana de três rodadas por variante. Os p95 de rota são 
 | Remoção do N+1, sem pool | 4,14→3,20 | 19.636,8→28.308,2 | 9.820,5→17.498,4 | API 13,42% / 47,38 MiB→7,57% / 44,00 MiB; banco 69,42% / 381,92 MiB→43,36% / 372,93 MiB | [A1](../resultados/20261114-151556-n1-rerun-01-a/), [A2](../resultados/20261114-152435-n1-rerun-02-a/), [A3](../resultados/20261114-152646-n1-rerun-03-a/) → [B1](../resultados/20261114-151931-n1-rerun-01-b/), [B2](../resultados/20261114-152153-n1-rerun-02-b/), [B3](../resultados/20261114-152942-n1-rerun-03-b/) | Inconclusivo: faixas se sobrepõem, pares divergem e houve um timeout em cada braço do primeiro par. |
 | Pool de até 10 conexões | 3,32→4,31 | 35.288,3→17.094,6 | 3.713,0→5.690,5 | API 7,82% / 47,35 MiB→7,58% / 40,41 MiB; banco 45,21% / 363,89 MiB→50,84% / 373,20 MiB | [A1](../resultados/20261114-153158-pool-rerun-01-a/), [A2](../resultados/20261114-153949-pool-rerun-02-a/), [A3](../resultados/20261114-154204-pool-rerun-03-a/) → [B1](../resultados/20261114-153505-pool-rerun-01-b/), [B2](../resultados/20261114-153711-pool-rerun-02-b/), [B3](../resultados/20261114-154512-pool-rerun-03-b/) | Trade-off: throughput +29,8% e p95 geral −51,6%; latência mediana geral +143,1% e p95 da rota +53,3%. |
 
-As medições usaram 20 VUs, 60 s nominais, 15 s de aquecimento e seed 42. As ordens dos índices foram sempre sem→com; N+1 e pool usaram pares balanceados A→B, B→A, A→B. O contrato passou nos 42 casos de todas as medições principais; o pool teve zero erros k6, enquanto os dois timeouts do N+1 foram mantidos nos dados e na análise. Os planos confirmam o uso dos índices. CPU e memória são observações descritivas, não normalizadas por requisição; portanto, não há evidência suficiente para afirmar que as mudanças reduziram o custo total. Os detalhes metodológicos, exclusões e limitações estão em [experimentos.md](../experimentos.md) e [relatorio.md](../diagnostico/relatorio.md).
+As medições usaram 20 VUs, 60 s nominais, 15 s de aquecimento e seed 42. As ordens dos índices foram sempre sem→com; N+1 e pool usaram pares balanceados A→B, B→A, A→B. O contrato passou nos 42 casos de todas as medições principais; o pool teve zero erros k6, enquanto os dois timeouts do N+1 foram mantidos nos dados e na análise. Os planos confirmam o uso dos índices.
+
+Uma comparação acumulada e balanceada, na mesma base, mediu A→C: throughput +135,8%, p95 geral −56,1%, p95 da rota −85,8% e CPU estimada por resposta válida −65,1%; a memória total aumentou 2,4% na mediana pareada. A janela de recursos excedeu a duração k6 em mediana 6,0 s, então CPU/resposta é um proxy, não economia monetária. B3 teve 0,35% de erro; o contrato passou. C combina N+1 e pool e não isola seus efeitos. Dados e método estão no [relatório](../diagnostico/relatorio.md).
 
 ## 7. Limites e testes futuros
 
-As séries têm três rodadas por variante, uma máquina e um perfil sintético; não se mediu custo por requisição. A ordem balanceada reduz, mas não elimina, deriva temporal. A repetição do N+1 foi inconclusiva: medianas e pares divergem e há um timeout em cada braço do primeiro par. O pool elevou throughput em 29,8% e reduziu p95 geral em 51,6%, mas aumentou latência mediana geral em 143,1% e p95 da rota em 53,3%. O diagnóstico de 2 versus 20 VUs mostrou throughput quase estável (3,39→3,61 req/s) e latência maior, mas não separa execução de espera. Recursos foram recalculados dos CSVs e são observacionais; `scripts/` permaneceu intacto. Os dados e próximos testes estão em [experimentos.md](../experimentos.md) e [proximos-testes.md](../proximos-testes.md).
+As séries têm três rodadas por variante, uma máquina e um perfil sintético; a ordem balanceada reduz, mas não elimina, deriva temporal. O N+1 isolado foi inconclusivo; o pool isolado trocou melhor throughput agregado por pior p95 da rota. A comparação acumulada favoreceu o estado final, mas não separa o efeito de N+1 e pool e mediu pequeno aumento de memória. A estimativa de CPU por resposta é limitada pela janela de coleta. Os próximos testes estão em [experimentos.md](../experimentos.md) e [proximos-testes.md](../proximos-testes.md).
 
 ## 8. Referências
 
@@ -65,6 +67,8 @@ As séries têm três rodadas por variante, uma máquina e um perfil sintético;
 7. PostgreSQL Global Development Group. [Materialized Views, PostgreSQL 16](https://www.postgresql.org/docs/16/rules-materializedviews.html). Acesso em 12 nov. 2026.
 8. Docker. [Resource constraints](https://docs.docker.com/engine/containers/resource_constraints/). Acesso em 12 nov. 2026.
 9. PostgreSQL Global Development Group. [Resource Consumption, PostgreSQL 16](https://www.postgresql.org/docs/16/runtime-config-resource.html). Acesso em 12 nov. 2026.
+10. Docker. [docker container stats](https://docs.docker.com/reference/cli/docker/container/stats/). Acesso em 15 nov. 2026.
+11. Grafana k6. [Built-in metrics](https://grafana.com/docs/k6/latest/using-k6/metrics/reference/). Acesso em 15 nov. 2026.
 
 ## 9. Uso de IA
 
