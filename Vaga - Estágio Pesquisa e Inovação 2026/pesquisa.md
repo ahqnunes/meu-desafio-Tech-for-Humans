@@ -18,7 +18,7 @@ Registro de pesquisa para fundamentar os experimentos e o artigo. Fontes listada
 - [x] **Recursos/configuração:** documentação de Docker sobre CPU quota, throttling, hard memory limit/OOM e documentação PostgreSQL sobre `shared_buffers` e `work_mem`.
 - [x] **Casos de mercado:** GitLab, Zenn e Azure abertos; resultados e ressalvas contextualizados.
 - [ ] **Custos medidos no desafio:** obter, por experimento, tempo, CPU, memória, tamanho de cada índice, efeito nas outras rotas e contrato. A documentação não substitui esses resultados.
-- [x] **Fontes do artigo:** shortlist de oito fontes de abordagens diferentes selecionada; manter as demais como referências de apoio no registro.
+- [x] **Fontes do artigo:** shortlist revisada para nove fontes de abordagens diferentes; a bibliografia final do artigo e este registro estão alinhados.
 
 ## Pesquisa — 2026-11-11
 
@@ -85,18 +85,19 @@ Esta tabela é um rascunho para a seção de alternativas do artigo. A ordem exp
 
 ### Shortlist para a seção de alternativas do artigo
 
-Para cumprir o limite de 6–8 referências e evitar concentração em um único site, a seleção inicial é:
+Para manter uma seleção concisa, diversificada e alinhada às referências citadas no artigo, a shortlist é:
 
 1. **Índices B-tree e custo:** documentação PostgreSQL 16, [Indexes — Introduction](https://www.postgresql.org/docs/16/indexes-intro.html).
-2. **Busca por substring:** documentação PostgreSQL 16, [pg_trgm](https://www.postgresql.org/docs/16/pgtrgm.html).
-3. **Caso de mercado para trigram:** GitLab, [Fast Search Using PostgreSQL Trigram Text Indexes](https://about.gitlab.com/blog/fast-search-using-postgresql-trigram/).
-4. **N+1:** Yang et al., [paper ICSE 2018 integral](https://par.nsf.gov/servlets/purl/10067547).
-5. **Pool da API:** node-postgres, [Pooling](https://node-postgres.com/features/pooling).
-6. **Pré-computação:** documentação PostgreSQL 16, [Materialized Views](https://www.postgresql.org/docs/16/rules-materializedviews.html).
-7. **Configuração do banco:** documentação PostgreSQL 16, [Resource Consumption](https://www.postgresql.org/docs/16/runtime-config-resource.html).
-8. **Limites do container:** Docker, [Resource constraints](https://docs.docker.com/engine/containers/resource_constraints/).
+2. **Índices multicoluna:** documentação PostgreSQL 16, [Multicolumn Indexes](https://www.postgresql.org/docs/16/indexes-multicolumn.html).
+3. **Busca por substring:** documentação PostgreSQL 16, [pg_trgm](https://www.postgresql.org/docs/16/pgtrgm.html).
+4. **Caso de mercado para trigram:** GitLab, [Fast Search Using PostgreSQL Trigram Text Indexes](https://about.gitlab.com/blog/fast-search-using-postgresql-trigram/).
+5. **N+1:** Yang et al., [paper ICSE 2018 integral](https://par.nsf.gov/servlets/purl/10067547).
+6. **Pool da API:** node-postgres, [Pooling](https://node-postgres.com/features/pooling).
+7. **Pré-computação:** documentação PostgreSQL 16, [Materialized Views](https://www.postgresql.org/docs/16/rules-materializedviews.html).
+8. **Configuração do banco:** documentação PostgreSQL 16, [Resource Consumption](https://www.postgresql.org/docs/16/runtime-config-resource.html).
+9. **Limites do container:** Docker, [Resource constraints](https://docs.docker.com/engine/containers/resource_constraints/).
 
-Esta shortlist contém **8 fontes** para eventual citação na seção curta do artigo. A bibliografia numerada abaixo contém **21 referências consultadas** como inventário de pesquisa; não significa que todas serão citadas no texto final. As fontes de refresh concorrente, paginação, Zenn e Azure permanecem como material de apoio, mas não precisam entrar na seção curta, a menos que esses temas sejam escolhidos para a comparação final.
+Esta shortlist contém **9 fontes**, correspondentes às referências citadas no artigo. A bibliografia numerada abaixo contém **21 referências consultadas** como inventário de pesquisa; não significa que todas precisam aparecer no texto final. As fontes de refresh concorrente, paginação, Zenn e Azure permanecem como material de apoio.
 
 ### Instrumentação
 
@@ -126,4 +127,4 @@ Esta shortlist contém **8 fontes** para eventual citação na seção curta do 
 20. Microsoft Azure Database for PostgreSQL. **Tips for tuning Postgres LIKE/ILIKE queries via pg_trgm on Azure**. Microsoft TechCommunity, 2024. Caso de fornecedor com teste grande; distingue B-tree prefixo de GIN trigram para padrões sem prefixo. [https://techcommunity.microsoft.com/blog/adforpostgresql/tips-for-tuning-postgres-like--ilike-queries-via-pg-trgm-on-azure/4069179](https://techcommunity.microsoft.com/blog/adforpostgresql/tips-for-tuning-postgres-like--ilike-queries-via-pg-trgm-on-azure/4069179)
 21. PostgreSQL Global Development Group. **When Can Parallel Query Be Used?**, PostgreSQL 16. Condições para planejamento paralelo e limitações de workers. [https://www.postgresql.org/docs/16/when-can-parallel-query-be-used.html](https://www.postgresql.org/docs/16/when-can-parallel-query-be-used.html)
 
-As fontes foram consultadas em 2026-11-11. A lista contém documentação primária PostgreSQL e `node-postgres`, paper acadêmico lido integralmente, documentação Docker, material técnico de paginação e relatos de engenharia/fornecedor. Para o artigo, selecionar 6–8 fontes agrupadas por abordagem; não listar todas as referências deste inventário se não forem citadas.
+As fontes foram consultadas em 2026-11-11. A lista contém documentação primária PostgreSQL e `node-postgres`, paper acadêmico lido integralmente, documentação Docker, material técnico de paginação e relatos de engenharia/fornecedor. O artigo cita nove fontes da shortlist; as demais permanecem como inventário e não são apresentadas como fontes do artigo.
