@@ -1,65 +1,112 @@
 # Próximos testes
 
-As ideias abaixo ainda não foram testadas nesta aplicação; benefícios são hipóteses. Os experimentos de índices, a remoção do N+1 e o pool já foram medidos e estão registrados em [experimentos.md](experimentos.md) e [diagnostico/relatorio.md](diagnostico/relatorio.md). Cada mudança futura deve ser isolada, registrada antes da medição, aprovada pelo contrato e medida três vezes com os mesmos parâmetros; balancear ou sortear a ordem dos braços por par. Não alterar `carga/`, `scripts/` nem os arquivos protegidos do contrato e da geração de dados.
+Cada ficha abaixo tem o status **Pesquisada, teste futuro**: a ideia apareceu na pesquisa ([pesquisa.md](pesquisa.md)) e ainda não foi testada nesta aplicação. Os benefícios são hipóteses, não resultados. O que já foi aplicado e medido (dois índices, remoção do N+1, pool e a comparação acumulada A, B e C) está em [experimentos.md](experimentos.md) e em [diagnostico/relatorio.md](diagnostico/relatorio.md).
 
-A auditoria de recursos e a estimativa de CPU por resposta foram feitas diretamente dos CSVs usando [diagnostico/recalcular-recursos.py](diagnostico/recalcular-recursos.py) e [diagnostico/recalcular-cpu-por-requisicao.py](diagnostico/recalcular-cpu-por-requisicao.py). As limitações da janela e a interpretação como proxy, não custo monetário, estão em [diagnostico/relatorio.md](diagnostico/relatorio.md).
+**Regras para qualquer teste futuro:** uma mudança por commit, registrada antes da medição; contrato mantido nos 42 casos; três rodadas por variante com os mesmos parâmetros; ordem dos estados balanceada ou sorteada por par; CPU e memória recalculadas dos CSVs (ver [diagnostico/relatorio.md](diagnostico/relatorio.md)). Não alterar `carga/`, `scripts/` nem os arquivos protegidos do contrato e da geração de dados. Qualquer mudança que entre no estado final deixa a comparação A→C desatualizada e exige refazê-la (A→D).
 
-## Experimentos concluídos nesta etapa
+## 1. Limites de CPU e memória 25% menores
 
-### Remoção do N+1 em pedidos por cliente
+- **Status:** Pesquisada, teste futuro.
+- **Fonte:** [Docker, Resource constraints](https://docs.docker.com/engine/containers/resource_constraints/) (CPU quota com throttling; limite de memória e OOM) e [PostgreSQL 16, Resource Consumption](https://www.postgresql.org/docs/16/runtime-config-resource.html).
+- **Ganho esperado (hipótese):** o estado final (C) gastou ~65% menos CPU por resposta que o original (A) e a memória total ficou quase igual. Se há folga real, C deve manter ao menos o throughput de A com tetos 25% menores: API 0,375 CPU e 192 MB; banco 0,75 CPU e 384 MB.
+- **Como testar:** alterar só `cpus` e `memory` no `docker-compose.yml`, em um commit isolado; comparar A (limites originais) com C (limites reduzidos) em três pares balanceados; registrar req/s, p95, CPU, memória, erros e sinais de throttling ou OOM.
+- **Critério definido antes do teste:** a conclusão do artigo cai se C com limites reduzidos não mantiver o throughput mediano de A (2,52 req/s), se perder contrato ou se tiver OOM ou erros.
+- **Necessário/limites:** o banco usou, em média, de 375 a 398 MiB por rodada (CSV); um teto de 384 MB pode forçar reclaim de cache ou OOM. Reduzir recursos só vale como evidência de “mais barato” se o contrato e o throughput se mantiverem.
 
-- **Implementação:** uma consulta com `LEFT JOIN` e montagem da mesma resposta em memória; sem pooling.
-- **Repetição commitada:** três pares balanceados em worktrees limpos; throughput mediano 4,14→3,20 req/s (−22,7%), p95 geral +44,2% e p95 de `pedidos-do-cliente` +78,2%.
-- **Conclusão:** inconclusiva. As faixas se sobrepõem, os pares divergem e houve um timeout em cada braço do primeiro par. A repetição substitui a série anterior como evidência principal; não se deve manter a conclusão anterior de ganho medido.
-- **Integridade:** contrato mantido nos 42 casos em todas as rodadas; resultados e recursos detalhados em [experimentos.md](experimentos.md) e [diagnostico/relatorio.md](diagnostico/relatorio.md).
-- **Eficiência estimada:** CPU por resposta bem-sucedida caiu 21,4% na mediana das variações pareadas, mas req/s e latências pioraram nesta repetição.
-- **Próximo passo:** se a decisão de manter a alteração depender de benefício demonstrado, repetir com medição focada na rota-alvo, mesma base e warm-up documentado; não combinar com ajuste de configuração.
+## 2. Tamanho do pool (10 contra 4)
 
-### Pool de conexões, testado separadamente
+- **Status:** Pesquisada, teste futuro.
+- **Fonte:** [node-postgres, Pooling](https://node-postgres.com/features/pooling) (teto de clientes e reutilização) e o resultado do pool de 10 conexões em [experimentos.md](experimentos.md): throughput e p95 geral melhoraram, mas o p95 de `pedidos-do-cliente` piorou nos três pares.
+- **Ganho esperado (hipótese):** com o banco limitado a 1 CPU, um teto menor (4) reduz a contenção e devolve latência à rota, possivelmente com perda parcial de throughput.
+- **Como testar:** mudar só o parâmetro `max` do pool, com índices e N+1 fixos; pares balanceados; contrato e três rodadas; medir também `pedidos-do-cliente` isoladamente.
+- **Necessário/limites:** invalida A→C até refazer a acumulada. Conferir na documentação do node-postgres se há orientação de dimensionamento antes de escolher os valores. Não misturar com índice novo.
 
-- **Implementação testada:** pool PostgreSQL limitado a 10 conexões sobre a variante sem N+1; encerramento gracioso e registro de erros de conexões ociosas.
-- **Repetição commitada:** throughput mediano +29,8% e p95 geral −51,6%; em contrapartida, latência mediana geral +143,1% e p95 da rota-alvo +53,3%. Os três pares favoreceram throughput e p95 geral, mas pioraram o p95 da rota.
-- **Decisão/limite:** o pool permanece como escolha provisória de throughput agregado, não de latência da rota ou redução de memória total: a memória média caiu na API e subiu no banco. CPU por resposta bem-sucedida caiu 21,7% na mediana pareada, mas a estimativa não prova economia monetária. Antes de finalizar a decisão, repetir com foco em `pedidos-do-cliente` e avaliar se outro limite de pool reduz o p95 sem perder o ganho agregado.
-- **Integridade:** contrato mantido nos 42 casos e 0% de erros; CSVs e medições individuais estão registrados nas referências acima.
+## 3. Repetição da comparação acumulada em outra sessão ou máquina
 
-### Comparação acumulada de custo e desempenho — concluída
+- **Status:** Pesquisada, teste futuro.
+- **Fonte:** o enunciado (“os números podem variar mais de 30%” entre execuções) e os resultados de [experimentos.md](experimentos.md): o mesmo estado teve níveis diferentes em sessões diferentes (por exemplo, 5,77 req/s no experimento 2 e 4,14 no início do 3).
+- **Ganho esperado (hipótese):** C continua acima de A em req/s e em CPU por resposta fora da sessão original.
+- **Como testar:** repetir A, B e C com a ordem sorteada, em outra sessão ou máquina, com os mesmos parâmetros.
+- **Critério definido antes do teste:** a conclusão cai se a diferença entre A e C ficar dentro da variação entre rodadas de uma mesma versão.
+- **Necessário/limites:** tempo de máquina; a mesma régua (`medir.sh`).
 
-Em três blocos balanceados (ABC, BCA, CAB), com a mesma base, o estado final combinado comparado ao original aumentou throughput mediano de 2,52 para 5,91 req/s (+135,8% pareado), reduziu o p95 geral de 26,50 para 12,65 s (−56,1%) e CPU estimada de 0,369 para 0,128 CPU-s por resposta válida (−65,1%). O p95 da rota caiu 85,8%; memória total aumentou 2,4% pareada. As nove medições passaram no contrato; houve um timeout (0,35%) no braço B3. A CPU por resposta continua sendo proxy por causa da janela maior que a carga, não uma economia monetária. A série B→C combina remoção de N+1 e pool e não isola seus efeitos. Dados e detalhes estão em [experimentos.md](experimentos.md) e [diagnostico/relatorio.md](diagnostico/relatorio.md).
+## 4. Carga com escrita
 
-**Próxima decisão:** manter o estado final como opção mais eficiente neste perfil; se for importante decidir sobre o pool isoladamente, medir o p95 de `pedidos-do-cliente` com N+1 fixo e variantes de pool, sem combinar outras mudanças.
+- **Status:** Pesquisada, teste futuro.
+- **Fonte:** [PostgreSQL 16, Indexes — Introduction](https://www.postgresql.org/docs/16/indexes-intro.html): índices aumentam o custo de manipulação de dados.
+- **Ganho esperado (hipótese):** o oposto de um ganho: com escritas, o custo de manter os dois índices reduz a vantagem medida em leitura.
+- **Como testar:** a carga atual só lê e `carga/` não pode ser alterada. Seria um perfil exploratório fora do `medir.sh`, declarado como tal, comparando inserções ou atualizações em A e em B.
+- **Necessário/limites:** escrever esse perfil; não vale como medição oficial do desafio.
 
-## Otimizações ainda não testadas
+## 5. Índice por status e paginação em `GET /pedidos`
 
-### Índice funcional para busca por e-mail
+- **Status:** Pesquisada, teste futuro.
+- **Fonte:** planos de `COUNT` e página em [diagnostico/planos-consultas.txt](diagnostico/planos-consultas.txt); [Multicolumn Indexes](https://www.postgresql.org/docs/16/indexes-multicolumn.html), [Indexes and ORDER BY](https://www.postgresql.org/docs/16/indexes-ordering.html) e [Index-Only Scans](https://www.postgresql.org/docs/16/indexes-index-only-scans.html).
+- **Ganho esperado (hipótese, página):** um índice alinhado a `status` e à ordenação (`criado_em DESC, id DESC`) reduz o trabalho da página de 20 linhas.
+- **Hipótese (COUNT):** o `COUNT(*)` do total não melhora necessariamente: um index-only scan só compensa se boa parte das páginas estiver marcada como visível no visibility map.
+- **Como testar:** uma mudança SQL isolada; plano da página e do `COUNT` em separado; medir as sete rotas; preservar a semântica de `pagina`.
+- **Necessário/limites:** a carga usa páginas de 1 a 1000. O timeout do braço B3 da série final foi nesta rota.
 
-- **Fonte/evidência:** plano da busca em [diagnostico/planos-consultas.txt](diagnostico/planos-consultas.txt) e [documentação PostgreSQL sobre índices de expressão](https://www.postgresql.org/docs/16/indexes-expressional.html).
-- **Hipótese:** um índice em `lower(email)` pode apoiar a expressão aplicada pela consulta e evitar a varredura de clientes.
-- **Como testar:** adicionar índice em SQL versionado, comparar o plano, tamanho e medições das sete rotas antes/depois; validar o contrato.
-- **Necessário/limites:** considerar espaço e custo de escrita/manutenção; um índice B-tree simples em `email` não é substituto presumido para a expressão `lower(email)`.
+## 6. Índice funcional para busca por e-mail
 
-### Índice para pedidos por status e paginação
+- **Status:** Pesquisada, teste futuro.
+- **Fonte:** plano da busca em [diagnostico/planos-consultas.txt](diagnostico/planos-consultas.txt) e [PostgreSQL 16, Indexes on Expressions](https://www.postgresql.org/docs/16/indexes-expressional.html).
+- **Ganho esperado (hipótese):** um índice em `lower(email)` evita a varredura de 100 mil clientes em `GET /clientes?email=`.
+- **Como testar:** índice em SQL versionado; comparar plano, tamanho e as sete rotas antes e depois; validar o contrato.
+- **Necessário/limites:** espaço e manutenção na escrita; um B-tree simples em `email` não substitui a expressão `lower(email)`.
 
-- **Fonte/evidência:** planos de `COUNT` e página em [diagnostico/planos-consultas.txt](diagnostico/planos-consultas.txt) e documentação PostgreSQL sobre [índices multicoluna](https://www.postgresql.org/docs/16/indexes-multicolumn.html).
-- **Hipótese:** um índice alinhado ao filtro por `status` e à ordenação pode reduzir o custo da página; o `COUNT(*)` pode continuar custoso.
-- **Como testar:** testar o índice composto em mudança isolada, examinar separadamente plano de página e `COUNT`, medir todas as rotas e preservar a semântica de `pagina`.
-- **Necessário/limites:** a carga atual usa páginas de 1 a 1000; não extrapolar para páginas mais profundas não testadas. Keyset pagination não entra como otimização elegível enquanto exigir alterar o contrato de página numerada.
+## 7. Relatórios: filtro de data
 
-### Índice GIN com `pg_trgm` para busca de produtos
+- **Status:** Pesquisada, teste futuro.
+- **Fonte:** planos em [diagnostico/experimento-01-planos-relatorios.txt](diagnostico/experimento-01-planos-relatorios.txt) (varredura sequencial com filtro em `(criado_em)::date`) e [Multicolumn Indexes](https://www.postgresql.org/docs/16/indexes-multicolumn.html).
+- **Ganho esperado (hipótese):** um filtro por faixa de timestamp, compatível com índice, reduz o trabalho de `vendas-por-dia`.
+- **Como testar:** reescrever o filtro e criar o índice em uma mudança isolada; comparar respostas além de latência.
+- **Necessário/limites:** a API devolve datas em UTC; reescrever `(criado_em)::date` como faixa exige raciocínio de fuso, e os 42 casos do contrato podem não cobrir o limite do dia.
 
-- **Fonte/evidência:** [documentação PostgreSQL 16 de `pg_trgm`](https://www.postgresql.org/docs/16/pgtrgm.html), com contexto de mercado no levantamento [pesquisa.md](pesquisa.md).
-- **Hipótese:** o índice pode apoiar `ILIKE '%termo%'` e reduzir o trabalho de busca no catálogo.
-- **Como testar:** habilitar a extensão e criar o índice em SQL versionado; verificar `EXPLAIN`, tamanho e efeito em todas as rotas; executar contrato e três medições.
-- **Necessário/limites:** os termos atuais da carga têm pelo menos três caracteres. O catálogo tem 20 mil produtos e a consulta isolada não foi o maior custo; benefício e custo de armazenamento/manutenção precisam ser medidos localmente.
+## 8. Relatórios: view materializada
 
-### Relatórios: filtro de data e pré-computação
+- **Status:** Pesquisada, teste futuro.
+- **Fonte:** [Materialized Views](https://www.postgresql.org/docs/16/rules-materializedviews.html) e [REFRESH MATERIALIZED VIEW](https://www.postgresql.org/docs/16/sql-refreshmaterializedview.html).
+- **Ganho esperado (hipótese):** leituras repetidas de agregados ficam mais baratas, ao custo de espaço, refresh e dado possivelmente desatualizado.
+- **Como testar:** experimento separado do item 7; comparar resposta, frescor, armazenamento e custo de refresh.
+- **Necessário/limites:** esclarecer a exigência de atualidade antes; o contrato compara resultados exatos. A carga cobre uma janela móvel de sete dias e `top-produtos` com limite 10.
 
-- **Fonte/evidência:** planos dos relatórios em [diagnostico/experimento-01-planos-relatorios.txt](diagnostico/experimento-01-planos-relatorios.txt), documentação de [views materializadas](https://www.postgresql.org/docs/16/rules-materializedviews.html) e de [refresh](https://www.postgresql.org/docs/16/sql-refreshmaterializedview.html).
-- **Hipótese:** um filtro por faixa de timestamp compatível com índice pode reduzir trabalho em vendas por dia; pré-computar um agregado pode ajudar leituras repetidas de relatórios.
-- **Como testar:** testar separadamente a reescrita do filtro/índice e, em outro experimento, uma view materializada; comparar resposta e frescor dos dados além de latência e custo de armazenamento/refresh.
-- **Necessário/limites:** esclarecer a exigência de atualidade antes de escolher materialização; medir todas as rotas. A carga atual cobre janela móvel de sete dias e top produtos com limite 10, não toda a faixa permitida pela API.
+## 9. Índice GIN com `pg_trgm` na busca de produtos
 
-## Experimentos de configuração (separados das mudanças de consulta)
+- **Status:** Pesquisada, teste futuro.
+- **Fonte:** [PostgreSQL 16, pg_trgm](https://www.postgresql.org/docs/16/pgtrgm.html); casos em [pesquisa.md](pesquisa.md): [GitLab (2016)](https://about.gitlab.com/blog/fast-search-using-postgresql-trigram/), [Zenn (2025)](https://zenn.dev/team_zenn/articles/zenn-search-tuning-story?locale=en) e [Microsoft Azure (2024)](https://techcommunity.microsoft.com/blog/adforpostgresql/tips-for-tuning-postgres-like--ilike-queries-via-pg-trgm-on-azure/4069179).
+- **Ganho esperado (hipótese):** o índice apoia `ILIKE '%termo%'`. O caso do Azure distingue esse padrão sem prefixo (onde o trigram ajuda) do `LIKE` por prefixo (onde um B-tree resolve).
+- **Como testar:** habilitar a extensão e criar o índice em SQL versionado; `EXPLAIN`, tamanho e as sete rotas; contrato e três rodadas.
+- **Necessário/limites:** os termos da carga têm pelo menos três caracteres; o catálogo tem 20 mil produtos e a busca não foi o maior custo. Os casos externos usam outras bases e não preveem este catálogo.
 
-Depois das mudanças de consulta, pode-se avaliar paralelismo, `work_mem` ou limites, cada um em experimento próprio. Consultar a [documentação PostgreSQL 16 de recursos](https://www.postgresql.org/docs/16/runtime-config-resource.html) e os [limites de recursos do Docker](https://docs.docker.com/engine/containers/resource_constraints/); definir uma hipótese mensurável, manter o contrato e repetir três vezes por variante.
+## 10. Índice composto `(pedido_id, id)` em `itens_pedido`
 
-`work_mem` pode multiplicar o consumo por operação e sessão; limites de CPU podem causar throttling e memória pode causar OOM. Não combinar knobs entre si ou com mudanças de consulta, não alterar `scripts/` e registrar CPU/memória recalculadas dos CSVs junto do throughput e latência.
+- **Status:** Pesquisada, teste futuro.
+- **Fonte:** [Multicolumn Indexes](https://www.postgresql.org/docs/16/indexes-multicolumn.html), [Indexes and ORDER BY](https://www.postgresql.org/docs/16/indexes-ordering.html) e o plano em [diagnostico/experimento-01-plano.txt](diagnostico/experimento-01-plano.txt), que ainda ordena os itens por `id` depois do `Index Scan`.
+- **Ganho esperado (hipótese):** eliminar a etapa de ordenação; o ganho tende a ser pequeno, porque cada pedido tem poucos itens.
+- **Como testar:** trocar o índice simples pelo composto em uma mudança isolada; plano, tamanho e as sete rotas.
+- **Necessário/limites:** índice maior que o simples; decidir por `EXPLAIN` e medição, não por suposição.
+
+## 11. Parâmetros do PostgreSQL (paralelismo, `work_mem`, `shared_buffers`)
+
+- **Status:** Pesquisada, teste futuro.
+- **Fonte:** [Resource Consumption](https://www.postgresql.org/docs/16/runtime-config-resource.html) e [When Can Parallel Query Be Used?](https://www.postgresql.org/docs/16/when-can-parallel-query-be-used.html). Os planos de relatórios mostram `Workers Planned: 2` em um banco limitado a 1 CPU.
+- **Ganho esperado (hipótese):** menos workers paralelos podem reduzir a contenção de CPU no banco; mexer em `work_mem` ou `shared_buffers` pode alterar planos e consumo de memória. Não há ganho presumido.
+- **Como testar:** um parâmetro por experimento, com `-c` no `command` do serviço `banco`; contrato e três rodadas por variante.
+- **Necessário/limites:** `work_mem` pode multiplicar o consumo por operação e sessão; não combinar parâmetros entre si nem com mudanças de consulta.
+
+## 12. Paginação por keyset (cursor)
+
+- **Status:** Pesquisada, teste futuro (não elegível sob o contrato atual).
+- **Fonte:** Winand, [Pagination with OFFSET / No OFFSET](https://use-the-index-luke.com/no-offset) e [Fetching the Next Page](https://use-the-index-luke.com/sql/partial-results/fetch-next-page).
+- **Ganho esperado (hipótese):** custo estável em páginas profundas, porque o OFFSET precisa descartar as linhas anteriores.
+- **Como testar:** só se o contrato aceitar um cursor; hoje a rota recebe `pagina` e trocar isso alteraria a interface.
+- **Necessário/limites:** a carga só vai até a página 1000, então o ganho em páginas profundas não seria medido.
+
+## 13. Instrumentação com `pg_stat_statements`
+
+- **Status:** Pesquisada, teste futuro.
+- **Fonte:** [PostgreSQL 16, pg_stat_statements](https://www.postgresql.org/docs/16/pgstatstatements.html).
+- **Ganho esperado (hipótese):** atribuir tempo e blocos a cada consulta normalizada e orientar o próximo índice. Não é uma otimização.
+- **Como testar:** adicionar a `shared_preload_libraries`, reiniciar o banco e criar a extensão, como mudança operacional separada.
+- **Necessário/limites:** reinício do banco; não misturar com outro experimento.

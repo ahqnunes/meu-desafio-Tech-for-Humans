@@ -1,0 +1,76 @@
+PASTAS
+  A: 20261115-153545-final-A-r1
+  A: 20261115-154809-final-A-r2
+  A: 20261115-155354-final-A-r3
+  B: 20261115-153826-final-B-r1
+  B: 20261115-154327-final-B-r2
+  B: 20261115-155624-final-B-r3
+  C: 20261115-154050-final-C-r1
+  C: 20261115-154547-final-C-r2
+  C: 20261115-155125-final-C-r3
+
+POR BRACO (valores por rodada; mediana; faixa)
+
+[A]
+  req/s: [2.657, 2.507, 2.517]  mediana 2.517  faixa 2.507-2.657
+  p95 geral (ms): [25087.5, 28791.5, 26498.9]  mediana 26498.9  faixa 25087.5-28791.5
+  p95 pedidos-do-cliente (ms): [27488.6, 31328.4, 28516.1]  mediana 28516.1  faixa 27488.6-31328.4
+  erros (%): [0, 0, 0]  mediana 0  faixa 0-0
+  CPU-s/resposta (integral): [0.3929, 0.4287, 0.4148]  mediana 0.4148  faixa 0.3929-0.4287
+  CPU-s/resposta (proxy: media%/req/s): [0.3607, 0.3933, 0.3687]  mediana 0.3687  faixa 0.3607-0.3933
+  memoria total media (MiB): [417.9, 427.0, 413.8]  mediana 417.9  faixa 413.8-427.0
+
+[B]
+  req/s: [5.234, 3.88, 3.729]  mediana 3.88  faixa 3.729-5.234
+  p95 geral (ms): [12651.7, 18360.4, 21719.8]  mediana 18360.4  faixa 12651.7-21719.8
+  p95 pedidos-do-cliente (ms): [10304.4, 13621.0, 8424.7]  mediana 10304.4  faixa 8424.7-13621.0
+  erros (%): [0, 0, 0.35]  mediana 0  faixa 0-0.35
+  CPU-s/resposta (integral): [0.2071, 0.2116, 0.2078]  mediana 0.2078  faixa 0.2071-0.2116
+  CPU-s/resposta (proxy: media%/req/s): [0.1868, 0.1906, 0.1882]  mediana 0.1882  faixa 0.1868-0.1906
+  memoria total media (MiB): [447.3, 425.1, 429.4]  mediana 429.4  faixa 425.1-447.3
+
+[C]
+  req/s: [6.287, 5.911, 4.59]  mediana 5.911  faixa 4.59-6.287
+  p95 geral (ms): [10189.6, 12646.3, 15193.0]  mediana 12646.3  faixa 10189.6-15193.0
+  p95 pedidos-do-cliente (ms): [3827.4, 4461.1, 4338.4]  mediana 4338.4  faixa 3827.4-4461.1
+  erros (%): [0, 0, 0]  mediana 0  faixa 0-0
+  CPU-s/resposta (integral): [0.1426, 0.1432, 0.1452]  mediana 0.1432  faixa 0.1426-0.1452
+  CPU-s/resposta (proxy: media%/req/s): [0.1283, 0.1268, 0.1286]  mediana 0.1283  faixa 0.1268-0.1286
+  memoria total media (MiB): [427.7, 431.2, 434.1]  mediana 431.2  faixa 427.7-434.1
+
+PARES (rodada k contra rodada k)
+
+A->C
+  req/s: pares ['+136.6%', '+135.8%', '+82.4%']  mediana +135.8%
+  p95 geral (ms): pares ['-59.4%', '-56.1%', '-42.7%']  mediana -56.1%
+  p95 pedidos-do-cliente (ms): pares ['-86.1%', '-85.8%', '-84.8%']  mediana -85.8%
+  erros (%): diferenca em p.p. [0, 0, 0]
+  CPU-s/resposta (integral): pares ['-63.7%', '-66.6%', '-65.0%']  mediana -65.0%
+  CPU-s/resposta (proxy: media%/req/s): pares ['-64.4%', '-67.8%', '-65.1%']  mediana -65.1%
+  memoria total media (MiB): pares ['+2.4%', '+1.0%', '+4.9%']  mediana +2.4%
+  pares com req/s maior no segundo braço: 3 de 3
+
+B->C
+  req/s: pares ['+20.1%', '+52.3%', '+23.1%']  mediana +23.1%
+  p95 geral (ms): pares ['-19.5%', '-31.1%', '-30.1%']  mediana -30.1%
+  p95 pedidos-do-cliente (ms): pares ['-62.9%', '-67.2%', '-48.5%']  mediana -62.9%
+  erros (%): diferenca em p.p. [0, 0, -0.35]
+  CPU-s/resposta (integral): pares ['-31.2%', '-32.3%', '-30.1%']  mediana -31.2%
+  CPU-s/resposta (proxy: media%/req/s): pares ['-31.3%', '-33.4%', '-31.7%']  mediana -31.7%
+  memoria total media (MiB): pares ['-4.4%', '+1.4%', '+1.1%']  mediana +1.1%
+  pares com req/s maior no segundo braço: 3 de 3
+
+A->B
+  req/s: pares ['+97.0%', '+54.8%', '+48.2%']  mediana +54.8%
+  p95 geral (ms): pares ['-49.6%', '-36.2%', '-18.0%']  mediana -36.2%
+  p95 pedidos-do-cliente (ms): pares ['-62.5%', '-56.5%', '-70.5%']  mediana -62.5%
+  erros (%): diferenca em p.p. [0, 0, 0.35]
+  CPU-s/resposta (integral): pares ['-47.3%', '-50.6%', '-49.9%']  mediana -49.9%
+  CPU-s/resposta (proxy: media%/req/s): pares ['-48.2%', '-51.5%', '-48.9%']  mediana -48.9%
+  memoria total media (MiB): pares ['+7.0%', '-0.5%', '+3.8%']  mediana +3.8%
+  pares com req/s maior no segundo braço: 3 de 3
+
+NIVEIS PARA A TABELA (mediana de 3 rodadas; p95 em segundos)
+  A->C: req/s 2.52->5.91 | p95 geral 26.50->12.65 s | p95 pedidos-do-cliente 28.52->4.34 s | CPU/resp (integral) 0.415->0.143 | CPU/resp (proxy) 0.369->0.128 | mem 417.9->431.2 MiB
+  B->C: req/s 3.88->5.91 | p95 geral 18.36->12.65 s | p95 pedidos-do-cliente 10.30->4.34 s | CPU/resp (integral) 0.208->0.143 | CPU/resp (proxy) 0.188->0.128 | mem 429.4->431.2 MiB
+  A->B: req/s 2.52->3.88 | p95 geral 26.50->18.36 s | p95 pedidos-do-cliente 28.52->10.30 s | CPU/resp (integral) 0.415->0.208 | CPU/resp (proxy) 0.369->0.188 | mem 417.9->429.4 MiB
